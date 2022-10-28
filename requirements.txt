@@ -2,6 +2,7 @@
 python-dotenv
 torch==1.12.1
 diffusers
+gunicorn
 transformers
 nvidia-ml-py3
 ftfy
