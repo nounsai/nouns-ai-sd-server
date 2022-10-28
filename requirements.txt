@@ -1,0 +1,8 @@
+--find-links https://download.pytorch.org/whl/torch_stable.html
+python-dotenv
+torch==1.12.1
+diffusers
+transformers
+nvidia-ml-py3
+ftfy
+gradio==3.4.1
