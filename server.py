@@ -4,6 +4,7 @@ import json
 import torch
 
 from io import BytesIO 
+from flask_cors import CORS
 from multiprocessing import Pool, cpu_count
 from diffusers import StableDiffusionPipeline
 from flask import abort, Flask, request, Response, send_file
@@ -18,6 +19,7 @@ else:
         AUTH_TOKEN = config['huggingface_token']
 
 app = Flask(__name__)
+CORS(app)
 
 #######################################################
 ####################### HELPERS #######################

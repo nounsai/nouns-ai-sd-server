@@ -1,6 +1,7 @@
 --find-links https://download.pytorch.org/whl/torch_stable.html
 diffusers
 flask
+flask_cors
 ftfy
 gradio==3.4.1
 gunicorn
