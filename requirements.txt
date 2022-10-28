@@ -1,9 +1,10 @@
 --find-links https://download.pytorch.org/whl/torch_stable.html
-python-dotenv
-torch==1.12.1
 diffusers
-gunicorn
-transformers
-nvidia-ml-py3
+flask
 ftfy
 gradio==3.4.1
+gunicorn
+nvidia-ml-py3
+python-dotenv
+torch==1.12.1
+transformers
