@@ -15,7 +15,7 @@ else:
 def dummy(images, **kwargs):
     return images, False
 
-model_id = "johnslegers/stable-diffusion-v1-5"
+model_id = "sd-dreambooth-library/noggles-sd15-800-4e6"
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":

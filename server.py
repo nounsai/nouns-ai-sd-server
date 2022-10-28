@@ -26,13 +26,7 @@ app = Flask(__name__)
 def dummy(images, **kwargs):
     return images, False
 
-model_id = "johnslegers/stable-diffusion-v1-5"
-
-if not AUTH_TOKEN:
-    with open('/Users/ericolszewski/.huggingface/token') as f:
-        lines = f.readlines()
-        AUTH_TOKEN = lines[0]
-
+model_id = "sd-dreambooth-library/noggles-sd15-800-4e6"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
     print('Nvidia GPU detected!')
