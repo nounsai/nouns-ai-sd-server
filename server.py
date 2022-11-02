@@ -122,7 +122,8 @@ def get_video():
     video_path = video_pipeline.walk(
         prompts=content['prompts'],
         seeds=[int(seed) for seed in content['seeds']],
-        num_interpolation_steps=10,
+        fps=1 if 'fps' not in content else int(content['fps']),
+        num_interpolation_steps=5 if 'steps' not in content else int(content['steps']),
         height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
         width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
         output_dir='dreams',        # Where images/videos will be saved
