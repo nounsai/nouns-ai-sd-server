@@ -1,6 +1,8 @@
 import os
+import re
 import sys
 import json
+import time
 import torch
 
 from io import BytesIO 
@@ -8,7 +10,7 @@ from flask_cors import CORS
 from multiprocessing import Pool, cpu_count
 from diffusers import StableDiffusionPipeline
 from diffusers.schedulers import LMSDiscreteScheduler
-from stable_diffusion_videos import StableDiffusionWalkPipeline, Interface
+from stable_diffusion_videos import StableDiffusionWalkPipeline
 from flask import abort, Flask, request, Response, send_file
 currentdir = os.path.dirname(os.path.realpath(__file__))
 
@@ -79,6 +81,23 @@ def serve_pil_image(pil_img):
     return send_file(img_io, mimetype='image/jpeg')
 
 
+def get_chunk(path, byte1=None, byte2=None):
+    file_size = os.stat(path).st_size
+    start = 0
+    
+    if byte1 < file_size:
+        start = byte1
+    if byte2:
+        length = byte2 + 1 - byte1
+    else:
+        length = file_size - start
+
+    with open(path, 'rb') as f:
+        f.seek(start)
+        chunk = f.read(length)
+    return chunk, start, length, file_size
+
+
 #######################################################
 ######################### API #########################
 #######################################################
@@ -99,6 +118,7 @@ def get_image():
 @app.route('/get_video', methods=['POST'])
 def get_video():
     content = json.loads(request.data)
+    filename = str(int(time.time() * 100))
     video_path = video_pipeline.walk(
         prompts=['a cat', 'a dog'],
         seeds=[42, 1337],
@@ -106,11 +126,27 @@ def get_video():
         height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
         width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
         output_dir='dreams',        # Where images/videos will be saved
-        name='animals_test',        # Subdirectory of output_dir where images/videos will be saved
+        name=filename,        # Subdirectory of output_dir where images/videos will be saved
         guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
         num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
     )
-    return video_path
+
+    range_header = request.headers.get('Range', None)
+    byte1, byte2 = 0, None
+    if range_header:
+        match = re.search(r'(\d+)-(\d*)', range_header)
+        groups = match.groups()
+
+        if groups[0]:
+            byte1 = int(groups[0])
+        if groups[1]:
+            byte2 = int(groups[1])
+       
+    chunk, start, length, file_size = get_chunk(video_path, byte1, byte2)
+    resp = Response(chunk, 206, mimetype='video/mp4',
+                      content_type='video/mp4', direct_passthrough=True)
+    resp.headers.add('Content-Range', 'bytes {0}-{1}/{2}'.format(start, start + length - 1, file_size))
+    return resp
 
 
 if __name__ == "__main__":
