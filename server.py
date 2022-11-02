@@ -106,8 +106,6 @@ def get_chunk(path, byte1=None, byte2=None):
 @app.route('/get_image', methods=['POST'])
 def get_image():
     content = json.loads(request.data)
-    print('content: ', content)
-    print('request.headers: ', request.headers)
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
 
@@ -118,15 +116,17 @@ def get_image():
 @app.route('/get_video', methods=['POST'])
 def get_video():
     content = json.loads(request.data)
-    filename = str(int(time.time() * 100))
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+
     video_path = video_pipeline.walk(
-        prompts=['a cat', 'a dog'],
-        seeds=[42, 1337],
-        num_interpolation_steps=3,
+        prompts=content['prompts'],
+        seeds=content['seeds'],
+        num_interpolation_steps=10,
         height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
         width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
         output_dir='dreams',        # Where images/videos will be saved
-        name=filename,        # Subdirectory of output_dir where images/videos will be saved
+        name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
         guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
         num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
     )
