@@ -121,7 +121,7 @@ def get_video():
 
     video_path = video_pipeline.walk(
         prompts=content['prompts'],
-        seeds=content['seeds'],
+        seeds=[int(seed) for seed in content['seeds']],
         num_interpolation_steps=10,
         height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
         width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
