@@ -120,6 +120,7 @@ def get_video():
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
 
+    prev_content = None
     video_paths_list = []
     for i in range(0, len(content['prompts'])):
         prompt = content['prompts'][i]
