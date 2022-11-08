@@ -7,6 +7,7 @@ import torch
 
 from io import BytesIO 
 from flask_cors import CORS
+from moviepy.editor import *
 from multiprocessing import Pool, cpu_count
 from diffusers import StableDiffusionPipeline
 from diffusers.schedulers import LMSDiscreteScheduler
@@ -119,18 +120,34 @@ def get_video():
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
 
-    video_path = video_pipeline.walk(
-        prompts=content['prompts'],
-        seeds=[int(seed) for seed in content['seeds']],
-        fps=1 if 'fps' not in content else int(content['fps']),
-        num_interpolation_steps=5 if 'steps' not in content else int(content['steps']),
-        height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
-        width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
-        output_dir='dreams',        # Where images/videos will be saved
-        name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
-        guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
-        num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
-    )
+    video_paths_list = []
+    for i in range(0, len(content['prompts'])):
+        fps = 1 if 'fps' not in content else int(content['fps'][i])
+        num_interpolation_steps=(5*fps) if 'steps' not in content else (int(content['steps'][i])*fps)
+        video_path = video_pipeline.walk(
+            prompts=content['prompts'][i],
+            seeds=[int(seed) for seed in content['seeds'][i]],
+            fps=fps,
+            num_interpolation_steps=num_interpolation_steps,
+            height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
+            width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
+            batch_size=12,                         # increase until you go out of memory
+            output_dir='dreams',        # Where images/videos will be saved
+            name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
+            guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
+            num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
+        )
+        video_paths_list.append(video_path)
+
+    videos_list = []
+    for file in video_paths_list:
+        filePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), file)
+        video = VideoFileClip(filePath)
+        videos_list.append(video)
+
+    concat_video_name = 'dreams/' + str(int(time.time() * 100)) + '.mp4'
+    concat_video = concatenate_videoclips(videos_list)
+    concat_video.to_videofile(concat_video_name, fps=24, remove_temp=False)
 
     range_header = request.headers.get('Range', None)
     byte1, byte2 = 0, None
@@ -143,7 +160,7 @@ def get_video():
         if groups[1]:
             byte2 = int(groups[1])
        
-    chunk, start, length, file_size = get_chunk(video_path, byte1, byte2)
+    chunk, start, length, file_size = get_chunk(concat_video_name, byte1, byte2)
     resp = Response(chunk, 206, mimetype='video/mp4',
                       content_type='video/mp4', direct_passthrough=True)
     resp.headers.add('Content-Range', 'bytes {0}-{1}/{2}'.format(start, start + length - 1, file_size))
