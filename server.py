@@ -122,22 +122,30 @@ def get_video():
 
     video_paths_list = []
     for i in range(0, len(content['prompts'])):
+        prompt = content['prompts'][i]
+        seed = [int(content['seeds'][i])],
         fps = 1 if 'fps' not in content else int(content['fps'][i])
-        num_interpolation_steps=(5*fps) if 'steps' not in content else (int(content['steps'][i])*fps)
-        video_path = video_pipeline.walk(
-            prompts=content['prompts'][i],
-            seeds=[int(content['seeds'][i])],
-            fps=fps,
-            num_interpolation_steps=num_interpolation_steps,
-            height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
-            width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
-            batch_size=12,                         # increase until you go out of memory
-            output_dir='dreams',        # Where images/videos will be saved
-            name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
-            guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
-            num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
-        )
-        video_paths_list.append(video_path)
+        num_interpolation_steps = (5*fps) if 'steps' not in content else (int(content['steps'][i])*fps)
+
+        if prev_content is None:
+            prev_content = (prompt, seed, fps, num_interpolation_steps)
+            continue
+        else:
+            video_path = video_pipeline.walk(
+                prompts=[prev_content[0], prompt],
+                seeds=[prev_content[1], seed],
+                fps=prev_content[2],
+                num_interpolation_steps=prev_content[3],
+                height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                batch_size=12,                         # increase until you go out of memory
+                output_dir='dreams',        # Where images/videos will be saved
+                name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
+                guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
+                num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
+            )
+            video_paths_list.append(video_path)
+            prev_content = (prompt, seed, fps, num_interpolation_steps)
 
     videos_list = []
     for file in video_paths_list:
