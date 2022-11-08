@@ -1,10 +1,10 @@
---find-links https://download.pytorch.org/whl/torch_stable.html
 diffusers
 flask
 flask_cors
 ftfy
 gradio==3.4.1
 gunicorn
+moviepy==1.0.3
 nvidia-ml-py3
 opencv-python==4.6.0.66
 python-dotenv
@@ -12,4 +12,3 @@ realesrgan==0.3.0
 stable_diffusion_videos==0.6.2
 torch==1.12.1
 torchvision==0.14.0
-transformers

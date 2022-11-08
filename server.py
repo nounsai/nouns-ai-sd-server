@@ -126,7 +126,7 @@ def get_video():
         num_interpolation_steps=(5*fps) if 'steps' not in content else (int(content['steps'][i])*fps)
         video_path = video_pipeline.walk(
             prompts=content['prompts'][i],
-            seeds=[int(seed) for seed in content['seeds'][i]],
+            seeds=[int(content['seeds'][i])],
             fps=fps,
             num_interpolation_steps=num_interpolation_steps,
             height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
