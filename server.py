@@ -8,6 +8,7 @@ import torch
 from io import BytesIO 
 from flask_cors import CORS
 from moviepy.editor import *
+from transformers import pipeline
 from multiprocessing import Pool, cpu_count
 from diffusers import StableDiffusionPipeline
 from diffusers.schedulers import LMSDiscreteScheduler
@@ -59,6 +60,7 @@ else:
         use_auth_token=AUTH_TOKEN,
     )
 
+text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
 image_pipeline.to(device)
 image_pipeline.safety_checker = dummy
 #torch.backends.cudnn.benchmark = True
@@ -102,6 +104,15 @@ def get_chunk(path, byte1=None, byte2=None):
 #######################################################
 ######################### API #########################
 #######################################################
+
+
+@app.route('/extend_prompt', methods=['POST'])
+def extend_prompt():
+    content = json.loads(request.data)
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+
+    return text_pipeline(content['prompt'] + ',', num_return_sequences=1)[0]["generated_text"]
 
 
 @app.route('/get_image', methods=['POST'])
