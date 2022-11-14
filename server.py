@@ -183,7 +183,7 @@ def delete_image_for_user(user_id, image_id):
     
     try:
         delete_image_by_id(image_id)
-        return 200
+        return {'image_id':image_id}, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return "Internal server error: {}".format(str(e)), 500
