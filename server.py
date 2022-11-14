@@ -14,6 +14,8 @@ from diffusers import StableDiffusionPipeline
 from diffusers.schedulers import LMSDiscreteScheduler
 from stable_diffusion_videos import StableDiffusionWalkPipeline
 from flask import abort, Flask, request, Response, send_file
+from db import add_image, add_request, add_user, delete_image_by_id, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users
+
 currentdir = os.path.dirname(os.path.realpath(__file__))
 
 if not os.path.isfile("config.json"):
@@ -104,6 +106,110 @@ def get_chunk(path, byte1=None, byte2=None):
 #######################################################
 ######################### API #########################
 #######################################################
+
+@app.route('/users', methods=['POST'])
+def create_user():
+    content = json.loads(request.data)
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+    
+    try:
+        id = add_user(
+            content['email'], 
+            content['password_hash']
+        )
+        return {'user_id':id}, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return "Internal server error: {}".format(str(e)), 500
+
+
+@app.route('/users', methods=['GET'])
+def get_users():
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+    
+    try:
+        users = fetch_users()
+        return users, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return "Internal server error: {}".format(str(e)), 500
+
+
+@app.route('/users/<user_id>/images', methods=['GET'])
+def get_images_for_user(user_id):
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+        
+    try:
+        images = fetch_images_for_user(user_id)
+        return images, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return "Internal server error: {}".format(str(e)), 500
+
+
+@app.route('/users/<user_id>/images', methods=['POST'])
+def add_image_for_user(user_id):
+    content = json.loads(request.data)
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+    
+    try:
+        id = add_image(
+            user_id, 
+            content['model_id'], 
+            content['prompt'], 
+            content['steps'], 
+            content['seed'], 
+            content['base_64'], 
+            content['image_hash']
+        )
+        return {'image_id':id}, 200
+    except Exception as e:
+        try:
+            image = fetch_image_by_hash(content['image_hash'])
+            return {'image_id':image['id']}, 200
+        except Exception as e:
+            print("Internal server error: {}".format(str(e)))
+            return "Internal server error: {}".format(str(e)), 500
+
+
+@app.route('/users/<user_id>/images/<image_id>', methods=['DELETE'])
+def delete_image_for_user(user_id, image_id):
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+    
+    try:
+        delete_image_by_id(image_id)
+        return 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return "Internal server error: {}".format(str(e)), 500
+
+
+@app.route('/users/<user_id>/requests', methods=['POST'])
+def add_request_for_user(user_id):
+    content = json.loads(request.data)
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+    
+    try:
+        id = add_request(
+            user_id, 
+            content['model_id'], 
+            content['config'], 
+            content['config_hash']
+        )
+        return {'request_id':id}, 200
+    except Exception as e:
+        try:
+            image = fetch_request_by_hash(content['config_hash'])
+            return {'request_id':image['id']}, 200
+        except Exception as e:
+            print("Internal server error: {}".format(str(e)))
+            return "Internal server error: {}".format(str(e)), 500
 
 
 @app.route('/extend_prompt', methods=['POST'])

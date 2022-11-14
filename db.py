@@ -163,10 +163,12 @@ def add_user(email, password_hash):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO users (email, password_hash) VALUES (%s, %s);", (email, password_hash))
+    cur.execute("INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id;", (email, password_hash))
+    id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+    return id
 
 
 ########################################################
@@ -211,28 +213,102 @@ def delete_image_by_id(id):
     close_connection(conn)
 
 
+def fetch_image_by_hash(hash):
+
+    conn = open_connection()
+    sql = "SELECT * FROM images WHERE image_hash='{}';".format(hash)
+    images_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(images_df.to_json(orient="records"))[0]
+
+
 def add_image(user_id, model_id, prompt, steps, seed, base_64, image_hash):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO images (user_id, model_id, prompt, steps, seed, base_64, image_hash) VALUES (%s, %s, %s, %s, %s, %s, %s);", (user_id, model_id, prompt, steps, seed, base_64, image_hash))
+    cur.execute("INSERT INTO images (user_id, model_id, prompt, steps, seed, base_64, image_hash) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;", (user_id, model_id, prompt, steps, seed, base_64, image_hash))
+    id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+    return id
+
+
+########################################################
+####################### REQUESTS #######################
+########################################################
+
+
+def fetch_requests():
+
+    conn = open_connection()
+    sql = "SELECT * FROM requests order by id asc;"
+    requests_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(requests_df.to_json(orient="records"))
+
+
+def fetch_requests_for_user(user_id):
+
+    conn = open_connection()
+    sql = "SELECT * FROM requests where user_id={} order by id desc;".format(user_id)
+    requests_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(requests_df.to_json(orient="records"))
+
+
+def fetch_request_by_id(id):
+
+    conn = open_connection()
+    sql = "SELECT * FROM requests WHERE id={};".format(id)
+    requests_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(requests_df.to_json(orient="records"))[0]
+
+
+def delete_request_by_id(id):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("DELETE FROM requests WHERE id={};".format(id))
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
+def fetch_request_by_hash(hash):
+
+    conn = open_connection()
+    sql = "SELECT * FROM requests WHERE config_hash='{}';".format(hash)
+    requests_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(requests_df.to_json(orient="records"))[0]
+
+
+def add_request(user_id, model_id, config, config_hash):
+    
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("INSERT INTO requests (user_id, model_id, config, config_hash) VALUES (%s, %s, %s, %s) RETURNING id;", (user_id, model_id, json.dumps(config), config_hash))
+    id = cur.fetchone()[0]
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return id
 
 
 ########################################################
 #################### TEST COMMANDS #####################
 ########################################################
 
-# add_user('eolszewski@gmail.com', '2d90fed25bb113e4bfbe0bd33cbe1f54070af97d0f2bee3ef84514a062c96d23')
+# id = add_user('eolszewski@gmail.com', '2d90fed25bb113e4bfbe0bd33cbe1f54070af97d0f2bee3ef84514a062c96d23')
 # add_model('sd-dreambooth-library/noggles-sd15-800-4e6')
 
 # with open("lizard.jpg", "rb") as image_file:
 #     base_64_encoded = base64.b64encode(image_file.read())
 #     base_64 = base_64_encoded.decode("utf-8") 
 #     hash = hashlib.sha256(base_64_encoded).hexdigest()
-#     add_image(
+#     id = add_image(
 #         1, 
 #         1, 
 #         'a portrait of a hi definition 4k cartoon lizard wearing noggles (red frame black white lens), very detailed, ultra realistic, extremely high detail, unreal engine, very detailed', 

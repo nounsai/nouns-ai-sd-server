@@ -50,7 +50,7 @@ CREATE TABLE images (
 ## Video Requests
 
 ```
-CREATE TABLE video_requests (
+CREATE TABLE requests (
 	id SERIAL NOT NULL PRIMARY KEY,
     user_id INTEGER NOT NULL,
     model_id INTEGER NOT NULL,
@@ -58,6 +58,6 @@ CREATE TABLE video_requests (
     config_hash VARCHAR (256) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     queued BOOLEAN NOT NULL DEFAULT true,
-    UNIQUE (user_id, model_id, json_hash)
+    UNIQUE (user_id, model_id, config_hash)
 );
 ```
