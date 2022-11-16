@@ -48,6 +48,19 @@ CREATE TABLE images (
 );
 ```
 
+## Audio
+
+```
+CREATE TABLE audio (
+	id SERIAL NOT NULL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name VARCHAR (256) NOT NULL,
+    url VARCHAR (256) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, name, url)
+);
+```
+
 ## Video Requests
 
 ```

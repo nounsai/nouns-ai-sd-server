@@ -289,7 +289,61 @@ def add_request(user_id, model_id, config, config_hash):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO requests (user_id, model_id, config, config_hash) VALUES (%s, %s, %s, %s) RETURNING id;", (user_id, model_id, json.dumps(config), config_hash))
+    cur.execute("INSERT INTO requests (user_id, model_id, config, config_hash) VALUES (%s, %s, %s, %s) RETURNING id;", (user_id, model_id, config, config_hash))
+    id = cur.fetchone()[0]
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return id
+
+
+########################################################
+######################## AUDIO #########################
+########################################################
+
+
+def fetch_audio():
+
+    conn = open_connection()
+    sql = "SELECT * FROM audio order by id asc;"
+    audio_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(audio_df.to_json(orient="records"))
+
+
+def fetch_audio_for_user(user_id):
+
+    conn = open_connection()
+    sql = "SELECT * FROM audio where user_id={} order by id desc;".format(user_id)
+    audio_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(audio_df.to_json(orient="records"))
+
+
+def fetch_audio_by_id(id):
+
+    conn = open_connection()
+    sql = "SELECT * FROM audio WHERE id={};".format(id)
+    audio_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(audio_df.to_json(orient="records"))[0]
+
+
+def delete_audio_by_id(id):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("DELETE FROM audio WHERE id={};".format(id))
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
+def add_audio(user_id, name, url):
+    
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("INSERT INTO audio (user_id, name, url) VALUES (%s, %s, %s) RETURNING id;", (user_id, name, url))
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()

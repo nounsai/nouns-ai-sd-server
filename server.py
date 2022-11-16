@@ -14,7 +14,7 @@ from diffusers import StableDiffusionPipeline
 from diffusers.schedulers import LMSDiscreteScheduler
 from stable_diffusion_videos import StableDiffusionWalkPipeline
 from flask import abort, Flask, request, Response, send_file
-from db import add_image, add_request, add_user, delete_image_by_id, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users
+from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users
 
 currentdir = os.path.dirname(os.path.realpath(__file__))
 
@@ -213,6 +213,27 @@ def add_request_for_user(user_id):
         except Exception as e:
             print("Internal server error: {}".format(str(e)))
             return "Internal server error: {}".format(str(e)), 500
+
+
+@app.route('/users/<user_id>/audio', methods=['POST'])
+def add_audio_for_user(user_id):
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+    try:
+        file = request.files['audio_file']
+        if file:
+            audio_files = fetch_audio()
+            for audio_file in audio_files:
+                print(audio_file)
+                if audio_file['name'] == file.filename:
+                    return {'audio_id':audio_file['id']}, 200
+            
+            file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/' + file.filename))
+            id = add_audio(user_id, file.filename, 'placeholder')
+            return {'audio_id':id}, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return "Internal server error: {}".format(str(e)), 500
 
 
 @app.route('/extend_prompt', methods=['POST'])
