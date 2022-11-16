@@ -67,15 +67,15 @@ image_pipeline.to(device)
 image_pipeline.safety_checker = dummy
 #torch.backends.cudnn.benchmark = True
 
-def infer(prompt="", samples=4, steps=20, scale=7.5, seed=1437181781):
+def infer(prompt="", aspect_ratio=0, samples=4, steps=20, scale=7.5, seed=1437181781):
     generator = torch.Generator(device=device).manual_seed(seed)
     images = image_pipeline(
         [prompt] * samples,
         num_inference_steps=steps,
         guidance_scale=scale,
         generator=generator,
-        height=576,
-        width=1024
+        height=512 if aspect_ratio == 0 else 576,
+        width=512 if aspect_ratio == 0 else 1024
     ).images
     print(images)
     return images
@@ -166,7 +166,8 @@ def add_image_for_user(user_id):
             content['steps'], 
             content['seed'], 
             content['base_64'], 
-            content['image_hash']
+            content['image_hash'],
+            content['aspect_ratio']
         )
         return {'image_id':id}, 200
     except Exception as e:
@@ -229,7 +230,7 @@ def get_image():
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
 
-    images = infer(prompt=content['prompt'], samples=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']))
+    images = infer(prompt=content['prompt'], aspect_ratio=content['aspect_ratio'], samples=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']))
     return serve_pil_image(images[0])
 
 
@@ -256,8 +257,8 @@ def get_video():
                 seeds=[prev_content[1], seed],
                 fps=prev_content[2],
                 num_interpolation_steps=prev_content[3],
-                height=576,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
-                width=1024,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                height=512 if content['aspect_ratio'] == 0 else 576,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                width=512 if content['aspect_ratio'] == 0 else 1024,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
                 output_dir='dreams',        # Where images/videos will be saved
                 name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
                 guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
