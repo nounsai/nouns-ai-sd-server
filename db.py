@@ -289,7 +289,7 @@ def add_request(user_id, model_id, config, config_hash):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO requests (user_id, model_id, config, config_hash) VALUES (%s, %s, %s, %s) RETURNING id;", (user_id, model_id, config, config_hash))
+    cur.execute("INSERT INTO requests (user_id, model_id, config, config_hash) VALUES ({}, {}, \'{}\', \'{}\') RETURNING id;".format(user_id, model_id, config, config_hash))
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()

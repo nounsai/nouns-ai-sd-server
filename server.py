@@ -202,7 +202,7 @@ def add_request_for_user(user_id):
         id = add_request(
             user_id, 
             content['model_id'], 
-            content['config'], 
+            json.dumps(content['config']),
             content['config_hash']
         )
         return {'request_id':id}, 200
