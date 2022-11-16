@@ -74,6 +74,8 @@ def infer(prompt="", samples=4, steps=20, scale=7.5, seed=1437181781):
         num_inference_steps=steps,
         guidance_scale=scale,
         generator=generator,
+        height=576,
+        width=1024
     ).images
     print(images)
     return images
@@ -254,8 +256,8 @@ def get_video():
                 seeds=[prev_content[1], seed],
                 fps=prev_content[2],
                 num_interpolation_steps=prev_content[3],
-                height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
-                width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                height=576,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                width=1024,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
                 output_dir='dreams',        # Where images/videos will be saved
                 name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
                 guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
