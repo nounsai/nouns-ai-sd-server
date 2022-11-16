@@ -217,14 +217,11 @@ def add_request_for_user(user_id):
 
 @app.route('/users/<user_id>/audio', methods=['POST'])
 def add_audio_for_user(user_id):
-    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
-        return "'challenge-token' header missing / invalid", 401
     try:
         file = request.files['audio_file']
         if file:
             audio_files = fetch_audio()
             for audio_file in audio_files:
-                print(audio_file)
                 if audio_file['name'] == file.filename:
                     return {'audio_id':audio_file['id']}, 200
             
