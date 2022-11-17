@@ -35,48 +35,81 @@ CORS(app)
 def dummy(images, **kwargs):
     return images, False
 
+square_model_id = "alxdfy/noggles-fastdb-10000-sq"
+wide_model_id = "alxdfy/noggles-fastdb-4800"
+
 model_id = "sd-dreambooth-library/noggles-sd15-800-4e6"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
     print('Nvidia GPU detected!')
     share = True
-    image_pipeline = StableDiffusionPipeline.from_pretrained(
-        model_id,
+    square_image_pipeline = StableDiffusionPipeline.from_pretrained(
+        square_model_id,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     )
-    video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
-        model_id,
+    square_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
+        square_model_id,
+        use_auth_token=AUTH_TOKEN,
+        torch_dtype=torch.float16
+    ).to("cuda")
+    wide_image_pipeline = StableDiffusionPipeline.from_pretrained(
+        wide_model_id,
+        use_auth_token=AUTH_TOKEN,
+        torch_dtype=torch.float16
+    )
+    wide_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
+        wide_model_id,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     ).to("cuda")
 else:
     print('No Nvidia GPU in system!')
     share = False
-    image_pipeline = StableDiffusionPipeline.from_pretrained(
-        model_id,
+    square_image_pipeline = StableDiffusionPipeline.from_pretrained(
+        square_model_id,
         use_auth_token=AUTH_TOKEN
     )
-    video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
-        model_id,
+    square_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
+        square_model_id,
+        use_auth_token=AUTH_TOKEN,
+    )
+    wide_image_pipeline = StableDiffusionPipeline.from_pretrained(
+        wide_model_id,
+        use_auth_token=AUTH_TOKEN
+    )
+    wide_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
+        wide_model_id,
         use_auth_token=AUTH_TOKEN,
     )
 
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
-image_pipeline.to(device)
-image_pipeline.safety_checker = dummy
+square_image_pipeline.to(device)
+square_image_pipeline.safety_checker = dummy
+wide_image_pipeline.to(device)
+wide_image_pipeline.safety_checker = dummy
 #torch.backends.cudnn.benchmark = True
 
 def infer(prompt="", aspect_ratio=0, samples=4, steps=20, scale=7.5, seed=1437181781):
     generator = torch.Generator(device=device).manual_seed(seed)
-    images = image_pipeline(
-        [prompt] * samples,
-        num_inference_steps=steps,
-        guidance_scale=scale,
-        generator=generator,
-        height=512 if aspect_ratio == 0 else 576,
-        width=512 if aspect_ratio == 0 else 1024
-    ).images
+    if aspect_ratio == 0:
+        images = square_image_pipeline(
+            [prompt] * samples,
+            num_inference_steps=steps,
+            guidance_scale=scale,
+            generator=generator,
+            height=512,
+            width=512
+        ).images
+    else:
+        images = wide_image_pipeline(
+            [prompt] * samples,
+            num_inference_steps=steps,
+            guidance_scale=scale,
+            generator=generator,
+            height=576,
+            width=1024
+        ).images
     print(images)
     return images
 
@@ -270,18 +303,32 @@ def get_video():
             prev_content = (prompt, seed, fps, num_interpolation_steps)
             continue
         else:
-            video_path = video_pipeline.walk(
-                prompts=[prev_content[0], prompt],
-                seeds=[prev_content[1], seed],
-                fps=prev_content[2],
-                num_interpolation_steps=prev_content[3],
-                height=512 if content['aspect_ratio'] == 0 else 576,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
-                width=512 if content['aspect_ratio'] == 0 else 1024,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
-                output_dir='dreams',        # Where images/videos will be saved
-                name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
-                guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
-                num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
-            )
+            if content['aspect_ratio'] == 0:
+                video_path = square_video_pipeline.walk(
+                    prompts=[prev_content[0], prompt],
+                    seeds=[prev_content[1], seed],
+                    fps=prev_content[2],
+                    num_interpolation_steps=prev_content[3],
+                    height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                    width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                    output_dir='dreams',        # Where images/videos will be saved
+                    name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
+                    guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
+                    num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
+                )
+            else:
+                video_path = wide_video_pipeline.walk(
+                    prompts=[prev_content[0], prompt],
+                    seeds=[prev_content[1], seed],
+                    fps=prev_content[2],
+                    num_interpolation_steps=prev_content[3],
+                    height=576,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                    width=1024,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                    output_dir='dreams',        # Where images/videos will be saved
+                    name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
+                    guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
+                    num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
+                )
             video_paths_list.append(video_path)
             prev_content = (prompt, seed, fps, num_interpolation_steps)
 
