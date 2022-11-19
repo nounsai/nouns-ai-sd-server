@@ -90,11 +90,12 @@ wide_image_pipeline.to(device)
 wide_image_pipeline.safety_checker = dummy
 #torch.backends.cudnn.benchmark = True
 
-def infer(prompt="", aspect_ratio=0, samples=4, steps=20, scale=7.5, seed=1437181781):
+def infer(prompt="", negative_prompt="", aspect_ratio=0, samples=4, steps=20, scale=7.5, seed=1437181781):
     generator = torch.Generator(device=device).manual_seed(seed)
     if aspect_ratio == 0:
         images = square_image_pipeline(
             [prompt] * samples,
+            negative_prompt=negative_prompt,
             num_inference_steps=steps,
             guidance_scale=scale,
             generator=generator,
@@ -104,6 +105,7 @@ def infer(prompt="", aspect_ratio=0, samples=4, steps=20, scale=7.5, seed=143718
     else:
         images = wide_image_pipeline(
             [prompt] * samples,
+            negative_prompt=negative_prompt,
             num_inference_steps=steps,
             guidance_scale=scale,
             generator=generator,
@@ -281,7 +283,7 @@ def get_image():
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
 
-    images = infer(prompt=content['prompt'], aspect_ratio=content['aspect_ratio'], samples=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']))
+    images = infer(prompt=content['prompt'], negative_prompt=content['negative_prompt'], aspect_ratio=content['aspect_ratio'], samples=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']))
     return serve_pil_image(images[0])
 
 
