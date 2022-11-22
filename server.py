@@ -10,7 +10,7 @@ from flask_cors import CORS
 from moviepy.editor import *
 from transformers import pipeline
 from multiprocessing import Pool, cpu_count
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline, DDPMScheduler
 from diffusers.schedulers import LMSDiscreteScheduler
 from stable_diffusion_videos import StableDiffusionWalkPipeline
 from flask import abort, Flask, request, Response, send_file
@@ -35,8 +35,9 @@ CORS(app)
 def dummy(images, **kwargs):
     return images, False
 
-square_model_id = "alxdfy/noggles-fastdb-10000-sq"
+square_model_id = "alxdfy/noggles9000"
 wide_model_id = "alxdfy/noggles-fastdb-4800"
+scheduler = DDPMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False)
 
 model_id = "sd-dreambooth-library/noggles-sd15-800-4e6"
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -45,21 +46,25 @@ if device == "cuda":
     share = True
     square_image_pipeline = StableDiffusionPipeline.from_pretrained(
         square_model_id,
+        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     )
     square_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
         square_model_id,
+        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     ).to("cuda")
     wide_image_pipeline = StableDiffusionPipeline.from_pretrained(
         wide_model_id,
+        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     )
     wide_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
         wide_model_id,
+        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     ).to("cuda")
@@ -68,18 +73,22 @@ else:
     share = False
     square_image_pipeline = StableDiffusionPipeline.from_pretrained(
         square_model_id,
+        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN
     )
     square_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
         square_model_id,
+        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
     )
     wide_image_pipeline = StableDiffusionPipeline.from_pretrained(
         wide_model_id,
+        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN
     )
     wide_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
         wide_model_id,
+        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
     )
 
@@ -95,7 +104,7 @@ def infer(prompt="", negative_prompt="", aspect_ratio=0, samples=4, steps=20, sc
     if aspect_ratio == 0:
         images = square_image_pipeline(
             [prompt] * samples,
-            negative_prompt=negative_prompt,
+            negative_prompt=[negative_prompt] * samples,
             num_inference_steps=steps,
             guidance_scale=scale,
             generator=generator,
@@ -105,7 +114,7 @@ def infer(prompt="", negative_prompt="", aspect_ratio=0, samples=4, steps=20, sc
     else:
         images = wide_image_pipeline(
             [prompt] * samples,
-            negative_prompt=negative_prompt,
+            negative_prompt=[negative_prompt] * samples,
             num_inference_steps=steps,
             guidance_scale=scale,
             generator=generator,
