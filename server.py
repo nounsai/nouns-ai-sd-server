@@ -242,6 +242,7 @@ def get_image():
 
 @app.route('/get_video', methods=['POST'])
 def get_video():
+    fps=24
     content = json.loads(request.data)
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
@@ -251,27 +252,26 @@ def get_video():
     for i in range(0, len(content['prompts'])):
         prompt = content['prompts'][i]
         seed = int(content['seeds'][i])
-        fps = 1 if 'fps' not in content else int(content['fps'][i])
-        num_interpolation_steps = (5*fps) if 'steps' not in content else (int(content['steps'][i])*fps)
+        timestamp = int(content['timestamps'][i])
 
         if prev_content is None:
-            prev_content = (prompt, seed, fps, num_interpolation_steps)
+            prev_content = (prompt, seed, timestamp)
             continue
         else:
             video_path = video_pipeline_dict[content['model_id']].walk(
                 prompts=[prev_content[0], prompt],
                 seeds=[prev_content[1], seed],
-                fps=prev_content[2],
-                num_interpolation_steps=prev_content[3],
+                num_interpolation_steps=[(timestamp - prev_content[2]) * fps],
                 height=int(models_dict[model_id].split(':')[1]),
                 width=int(models_dict[model_id].split(':')[0]),
+                audio_filepath='/home/eolszewski/nouns-ai-sd-server/audio/Jungle.mp3',  # Use your own file
+                audio_start_sec=prev_content[2],      # Start second of the provided audio
+                fps=fps,
                 output_dir='dreams',        # Where images/videos will be saved
                 name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
-                guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
-                num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
             )
             video_paths_list.append(video_path)
-            prev_content = (prompt, seed, fps, num_interpolation_steps)
+            prev_content = (prompt, seed, timestamp)
 
     videos_list = []
     for file in video_paths_list:
@@ -282,6 +282,7 @@ def get_video():
     concat_video_name = 'dreams/' + str(int(time.time() * 100)) + '.mp4'
     concat_video = concatenate_videoclips(videos_list)
     concat_video.to_videofile(concat_video_name, fps=24, remove_temp=False)
+    print(concat_video_name)
 
     range_header = request.headers.get('Range', None)
     byte1, byte2 = 0, None
