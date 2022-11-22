@@ -35,83 +35,36 @@ CORS(app)
 def dummy(images, **kwargs):
     return images, False
 
-square_model_id = "alxdfy/noggles9000"
-wide_model_id = "alxdfy/noggles-fastdb-4800"
+image_pipeline_dict = {}
+video_pipeline_dict = {}
+models_dict = {
+    'alxdfy/noggles9000': '768:768', 
+    'alxdfy/noggles-fastdb-4800': '1024:576', 
+    'nitrosocke/Ghibli-Diffusion': '512:704'
+}
 
 model_id = "sd-dreambooth-library/noggles-sd15-800-4e6"
 device = "cuda" if torch.cuda.is_available() else "cpu"
-if device == "cuda":
-    print('Nvidia GPU detected!')
-    share = True
-    square_image_pipeline = StableDiffusionPipeline.from_pretrained(
-        square_model_id,
-        use_auth_token=AUTH_TOKEN,
-        torch_dtype=torch.float16
-    )
-    square_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
-        square_model_id,
-        use_auth_token=AUTH_TOKEN,
-        torch_dtype=torch.float16
-    ).to("cuda")
-    wide_image_pipeline = StableDiffusionPipeline.from_pretrained(
-        wide_model_id,
-        use_auth_token=AUTH_TOKEN,
-        torch_dtype=torch.float16
-    )
-    wide_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
-        wide_model_id,
-        use_auth_token=AUTH_TOKEN,
-        torch_dtype=torch.float16
-    ).to("cuda")
-else:
-    print('No Nvidia GPU in system!')
-    share = False
-    square_image_pipeline = StableDiffusionPipeline.from_pretrained(
-        square_model_id,
-        use_auth_token=AUTH_TOKEN
-    )
-    square_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
-        square_model_id,
-        use_auth_token=AUTH_TOKEN,
-    )
-    wide_image_pipeline = StableDiffusionPipeline.from_pretrained(
-        wide_model_id,
-        use_auth_token=AUTH_TOKEN
-    )
-    wide_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
-        wide_model_id,
-        use_auth_token=AUTH_TOKEN,
-    )
-
+for model in models_dict.keys():
+    video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16 if device == "cuda" else torch.float32)
+    image_pipeline_dict[model] = StableDiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16 if device == "cuda" else torch.float32)
+    image_pipeline_dict[model].to(device)
+    image_pipeline_dict[model].safety_checker = dummy
+    
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
-square_image_pipeline.to(device)
-square_image_pipeline.safety_checker = dummy
-wide_image_pipeline.to(device)
-wide_image_pipeline.safety_checker = dummy
 #torch.backends.cudnn.benchmark = True
 
-def infer(prompt="", negative_prompt="", aspect_ratio=0, samples=4, steps=20, scale=7.5, seed=1437181781):
+def infer(model_id, prompt="", negative_prompt="", samples=4, steps=20, scale=7.5, seed=1437181781):
     generator = torch.Generator(device=device).manual_seed(seed)
-    if aspect_ratio == 0:
-        images = square_image_pipeline(
-            [prompt] * samples,
-            negative_prompt=[negative_prompt] * samples,
-            num_inference_steps=steps,
-            guidance_scale=scale,
-            generator=generator,
-            height=768,
-            width=768
-        ).images
-    else:
-        images = wide_image_pipeline(
-            [prompt] * samples,
-            negative_prompt=[negative_prompt] * samples,
-            num_inference_steps=steps,
-            guidance_scale=scale,
-            generator=generator,
-            height=576,
-            width=1024
-        ).images
+    images = image_pipeline_dict[model_id](
+        [prompt] * samples,
+        negative_prompt=[negative_prompt] * samples,
+        num_inference_steps=steps,
+        guidance_scale=scale,
+        generator=generator,
+        height=int(models_dict[model_id].split(':')[1]),
+        width=int(models_dict[model_id].split(':')[0])
+    ).images
     print(images)
     return images
 
@@ -283,7 +236,7 @@ def get_image():
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
 
-    images = infer(prompt=content['prompt'], negative_prompt=content['negative_prompt'], aspect_ratio=content['aspect_ratio'], samples=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']))
+    images = infer(content['model_id'], prompt=content['prompt'], negative_prompt=content['negative_prompt'], samples=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']))
     return serve_pil_image(images[0])
 
 
@@ -305,32 +258,18 @@ def get_video():
             prev_content = (prompt, seed, fps, num_interpolation_steps)
             continue
         else:
-            if content['aspect_ratio'] == 0:
-                video_path = square_video_pipeline.walk(
-                    prompts=[prev_content[0], prompt],
-                    seeds=[prev_content[1], seed],
-                    fps=prev_content[2],
-                    num_interpolation_steps=prev_content[3],
-                    height=768,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
-                    width=768,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
-                    output_dir='dreams',        # Where images/videos will be saved
-                    name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
-                    guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
-                    num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
-                )
-            else:
-                video_path = wide_video_pipeline.walk(
-                    prompts=[prev_content[0], prompt],
-                    seeds=[prev_content[1], seed],
-                    fps=prev_content[2],
-                    num_interpolation_steps=prev_content[3],
-                    height=576,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
-                    width=1024,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
-                    output_dir='dreams',        # Where images/videos will be saved
-                    name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
-                    guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
-                    num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
-                )
+            video_path = video_pipeline_dict[content['model_id']].walk(
+                prompts=[prev_content[0], prompt],
+                seeds=[prev_content[1], seed],
+                fps=prev_content[2],
+                num_interpolation_steps=prev_content[3],
+                height=int(models_dict[model_id].split(':')[1]),
+                width=int(models_dict[model_id].split(':')[0]),
+                output_dir='dreams',        # Where images/videos will be saved
+                name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
+                guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
+                num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
+            )
             video_paths_list.append(video_path)
             prev_content = (prompt, seed, fps, num_interpolation_steps)
 

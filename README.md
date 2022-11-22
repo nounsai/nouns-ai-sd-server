@@ -42,7 +42,7 @@ CREATE TABLE images (
     seed BIGINT NOT NULL,
     base_64 TEXT NOT NULL,
     image_hash VARCHAR (256) NOT NULL,
-    aspect_ratio INTEGER NOT NULL,
+    aspect_ratio VARCHAR (12) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, model_id, image_hash)
 );
