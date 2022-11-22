@@ -262,8 +262,8 @@ def get_video():
                 prompts=[prev_content[0], prompt],
                 seeds=[prev_content[1], seed],
                 num_interpolation_steps=[(timestamp - prev_content[2]) * fps],
-                height=int(models_dict[model_id].split(':')[1]),
-                width=int(models_dict[model_id].split(':')[0]),
+                height=int(models_dict[content['model_id']].split(':')[1]),
+                width=int(models_dict[content['model_id']].split(':')[0]),
                 audio_filepath='/home/eolszewski/nouns-ai-sd-server/audio/Jungle.mp3',  # Use your own file
                 audio_start_sec=prev_content[2],      # Start second of the provided audio
                 fps=fps,
