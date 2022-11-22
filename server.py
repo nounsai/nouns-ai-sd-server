@@ -37,7 +37,6 @@ def dummy(images, **kwargs):
 
 square_model_id = "alxdfy/noggles9000"
 wide_model_id = "alxdfy/noggles-fastdb-4800"
-scheduler = DDPMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False)
 
 model_id = "sd-dreambooth-library/noggles-sd15-800-4e6"
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -46,25 +45,21 @@ if device == "cuda":
     share = True
     square_image_pipeline = StableDiffusionPipeline.from_pretrained(
         square_model_id,
-        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     )
     square_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
         square_model_id,
-        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     ).to("cuda")
     wide_image_pipeline = StableDiffusionPipeline.from_pretrained(
         wide_model_id,
-        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     )
     wide_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
         wide_model_id,
-        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
         torch_dtype=torch.float16
     ).to("cuda")
@@ -73,22 +68,18 @@ else:
     share = False
     square_image_pipeline = StableDiffusionPipeline.from_pretrained(
         square_model_id,
-        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN
     )
     square_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
         square_model_id,
-        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
     )
     wide_image_pipeline = StableDiffusionPipeline.from_pretrained(
         wide_model_id,
-        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN
     )
     wide_video_pipeline = StableDiffusionWalkPipeline.from_pretrained(
         wide_model_id,
-        scheduler=scheduler,
         use_auth_token=AUTH_TOKEN,
     )
 
@@ -108,8 +99,8 @@ def infer(prompt="", negative_prompt="", aspect_ratio=0, samples=4, steps=20, sc
             num_inference_steps=steps,
             guidance_scale=scale,
             generator=generator,
-            height=512,
-            width=512
+            height=768,
+            width=768
         ).images
     else:
         images = wide_image_pipeline(
@@ -320,8 +311,8 @@ def get_video():
                     seeds=[prev_content[1], seed],
                     fps=prev_content[2],
                     num_interpolation_steps=prev_content[3],
-                    height=512,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
-                    width=512,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                    height=768,  # use multiples of 64 if > 512. Multiples of 8 if < 512.
+                    width=768,   # use multiples of 64 if > 512. Multiples of 8 if < 512.
                     output_dir='dreams',        # Where images/videos will be saved
                     name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
                     guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
