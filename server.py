@@ -304,7 +304,6 @@ def get_music_video():
 
 @app.route('/get_video', methods=['POST'])
 def get_video():
-    fps=24
     content = json.loads(request.data)
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
@@ -315,23 +314,26 @@ def get_video():
         prompt = content['prompts'][i]
         seed = int(content['seeds'][i])
         timestamp = int(content['timestamps'][i])
+        fps = 24
 
         if prev_content is None:
-            prev_content = (prompt, seed, timestamp)
+            prev_content = (prompt, seed, fps, timestamp)
             continue
         else:
             video_path = video_pipeline_dict[content['model_id']].walk(
                 prompts=[prev_content[0], prompt],
                 seeds=[prev_content[1], seed],
                 fps=fps,
-                num_interpolation_steps=[(timestamp - prev_content[2]) * fps],
+                num_interpolation_steps=(timestamp - prev_content[3]) * fps,
                 height=int(models_dict[content['model_id']].split(':')[1]),
                 width=int(models_dict[content['model_id']].split(':')[0]),
                 output_dir='dreams',        # Where images/videos will be saved
                 name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
+                guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel
+                num_inference_steps=50,     # Number of diffusion steps per image generated. 50 is good default
             )
             video_paths_list.append(video_path)
-            prev_content = (prompt, seed, timestamp)
+            prev_content = (prompt, seed, fps, timestamp)
 
     videos_list = []
     for file in video_paths_list:
@@ -342,7 +344,6 @@ def get_video():
     concat_video_name = 'dreams/' + str(int(time.time() * 100)) + '.mp4'
     concat_video = concatenate_videoclips(videos_list)
     concat_video.to_videofile(concat_video_name, fps=24, remove_temp=False)
-    print(concat_video_name)
 
     range_header = request.headers.get('Range', None)
     byte1, byte2 = 0, None
