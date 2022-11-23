@@ -240,8 +240,8 @@ def get_image():
     return serve_pil_image(images[0])
 
 
-@app.route('/get_video', methods=['POST'])
-def get_video():
+@app.route('/get_music_video', methods=['POST'])
+def get_music_video():
     fps=24
     content = json.loads(request.data)
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
@@ -267,6 +267,66 @@ def get_video():
                 audio_filepath='/home/eolszewski/nouns-ai-sd-server/audio/Jungle.mp3',  # Use your own file
                 audio_start_sec=prev_content[2],      # Start second of the provided audio
                 fps=fps,
+                output_dir='dreams',        # Where images/videos will be saved
+                name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
+            )
+            video_paths_list.append(video_path)
+            prev_content = (prompt, seed, timestamp)
+
+    videos_list = []
+    for file in video_paths_list:
+        filePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), file)
+        video = VideoFileClip(filePath)
+        videos_list.append(video)
+
+    concat_video_name = 'dreams/' + str(int(time.time() * 100)) + '.mp4'
+    concat_video = concatenate_videoclips(videos_list)
+    concat_video.to_videofile(concat_video_name, fps=24, remove_temp=False)
+    print(concat_video_name)
+
+    range_header = request.headers.get('Range', None)
+    byte1, byte2 = 0, None
+    if range_header:
+        match = re.search(r'(\d+)-(\d*)', range_header)
+        groups = match.groups()
+
+        if groups[0]:
+            byte1 = int(groups[0])
+        if groups[1]:
+            byte2 = int(groups[1])
+       
+    chunk, start, length, file_size = get_chunk(concat_video_name, byte1, byte2)
+    resp = Response(chunk, 206, mimetype='video/mp4',
+                      content_type='video/mp4', direct_passthrough=True)
+    resp.headers.add('Content-Range', 'bytes {0}-{1}/{2}'.format(start, start + length - 1, file_size))
+    return resp
+
+
+@app.route('/get_video', methods=['POST'])
+def get_video():
+    fps=24
+    content = json.loads(request.data)
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
+        return "'challenge-token' header missing / invalid", 401
+
+    prev_content = None
+    video_paths_list = []
+    for i in range(0, len(content['prompts'])):
+        prompt = content['prompts'][i]
+        seed = int(content['seeds'][i])
+        timestamp = int(content['timestamps'][i])
+
+        if prev_content is None:
+            prev_content = (prompt, seed, timestamp)
+            continue
+        else:
+            video_path = video_pipeline_dict[content['model_id']].walk(
+                prompts=[prev_content[0], prompt],
+                seeds=[prev_content[1], seed],
+                fps=fps,
+                num_interpolation_steps=[(timestamp - prev_content[2]) * fps],
+                height=int(models_dict[content['model_id']].split(':')[1]),
+                width=int(models_dict[content['model_id']].split(':')[0]),
                 output_dir='dreams',        # Where images/videos will be saved
                 name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
             )
