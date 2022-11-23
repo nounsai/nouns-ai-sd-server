@@ -37,19 +37,24 @@ def dummy(images, **kwargs):
 
 image_pipeline_dict = {}
 video_pipeline_dict = {}
+# models_dict = {
+#     'alxdfy/noggles9000': '768:768', 
+#     'alxdfy/noggles-fastdb-4800': '1024:576', 
+#     'nitrosocke/Ghibli-Diffusion': '512:704'
+# }
 models_dict = {
-    'alxdfy/noggles9000': '768:768', 
-    'alxdfy/noggles-fastdb-4800': '1024:576', 
     'nitrosocke/Ghibli-Diffusion': '512:704'
 }
 
-model_id = "sd-dreambooth-library/noggles-sd15-800-4e6"
 device = "cuda" if torch.cuda.is_available() else "cpu"
-for model in models_dict.keys():
-    video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16 if device == "cuda" else torch.float32)
-    image_pipeline_dict[model] = StableDiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16 if device == "cuda" else torch.float32)
-    image_pipeline_dict[model].to(device)
-    image_pipeline_dict[model].safety_checker = dummy
+if device == "cuda":
+    for model in models_dict.keys():
+        video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16).to("cuda")
+        image_pipeline_dict[model] = StableDiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
+        image_pipeline_dict[model].to(device)
+        image_pipeline_dict[model].safety_checker = dummy
+else:
+    sys.exit("Need CUDA to run this server!")
     
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
 #torch.backends.cudnn.benchmark = True
