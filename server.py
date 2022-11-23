@@ -37,12 +37,9 @@ def dummy(images, **kwargs):
 
 image_pipeline_dict = {}
 video_pipeline_dict = {}
-# models_dict = {
-#     'alxdfy/noggles9000': '768:768', 
-#     'alxdfy/noggles-fastdb-4800': '1024:576', 
-#     'nitrosocke/Ghibli-Diffusion': '512:704'
-# }
 models_dict = {
+    'alxdfy/noggles9000': '768:768', 
+    'alxdfy/noggles-fastdb-4800': '1024:576', 
     'nitrosocke/Ghibli-Diffusion': '512:704'
 }
 
