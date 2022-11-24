@@ -40,7 +40,8 @@ video_pipeline_dict = {}
 models_dict = {
     'alxdfy/noggles9000': '768:768', 
     'alxdfy/noggles-fastdb-4800': '1024:576', 
-    'nitrosocke/Ghibli-Diffusion': '512:704'
+    'nitrosocke/Ghibli-Diffusion': '512:704',
+    'nitrosocke/Nitro-Diffusion': '512:768'
 }
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
