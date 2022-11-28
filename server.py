@@ -10,7 +10,7 @@ from flask_cors import CORS
 from moviepy.editor import *
 from transformers import pipeline
 from multiprocessing import Pool, cpu_count
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
+from diffusers import StableDiffusionPipeline, DDPMScheduler
 from diffusers.schedulers import LMSDiscreteScheduler
 from stable_diffusion_videos import StableDiffusionWalkPipeline
 from flask import abort, Flask, request, Response, send_file
@@ -47,12 +47,8 @@ models_dict = {
 device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
     for model in models_dict.keys():
-        video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16, revision="fp16")
-        video_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(video_pipeline_dict[model].scheduler.config)
-        video_pipeline_dict[model] = video_pipeline_dict[model].to("cuda")
-        image_pipeline_dict[model] = StableDiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16, revision="fp16")
-        image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
-        image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
+        video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16).to("cuda")
+        image_pipeline_dict[model] = StableDiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
         image_pipeline_dict[model].to(device)
         image_pipeline_dict[model].safety_checker = dummy
 else:
@@ -217,12 +213,11 @@ def add_audio_for_user(user_id):
         if file:
             audio_files = fetch_audio()
             for audio_file in audio_files:
-                filename = file.filename.replace(" ", "_")
-                if audio_file['name'] == filename:
+                if audio_file['name'] == file.filename:
                     return {'audio_id':audio_file['id']}, 200
             
-            file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/' + filename))
-            id = add_audio(user_id, filename, 'placeholder')
+            file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/' + file.filename))
+            id = add_audio(user_id, file.filename, 'placeholder')
             return {'audio_id':id}, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
