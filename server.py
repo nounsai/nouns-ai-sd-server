@@ -43,6 +43,13 @@ models_dict = {
     'nitrosocke/Ghibli-Diffusion': '512:704',
     'nitrosocke/Nitro-Diffusion': '512:768'
 }
+aspect_ratios_dict = {
+    '1:1': '768:768', 
+    '8:11': '512:704',
+    '8:12': '512:768',
+    '9:16': '576:1024', 
+    '16:9': '1024:576'
+}
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
@@ -57,7 +64,7 @@ else:
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
 #torch.backends.cudnn.benchmark = True
 
-def infer(model_id, prompt="", negative_prompt="", samples=4, steps=20, scale=7.5, seed=1437181781):
+def infer(model_id, aspect_ratio, prompt="", negative_prompt="", samples=4, steps=20, scale=7.5, seed=1437181781):
     generator = torch.Generator(device=device).manual_seed(seed)
     images = image_pipeline_dict[model_id](
         [prompt] * samples,
@@ -65,8 +72,8 @@ def infer(model_id, prompt="", negative_prompt="", samples=4, steps=20, scale=7.
         num_inference_steps=steps,
         guidance_scale=scale,
         generator=generator,
-        height=int(models_dict[model_id].split(':')[1]),
-        width=int(models_dict[model_id].split(':')[0])
+        height=int(aspect_ratios_dict[aspect_ratio].split(':')[1]),
+        width=int(aspect_ratios_dict[aspect_ratio].split(':')[0])
     ).images
     print(images)
     return images
@@ -239,7 +246,7 @@ def get_image():
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
 
-    images = infer(content['model_id'], prompt=content['prompt'], negative_prompt=content['negative_prompt'], samples=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']))
+    images = infer(content['model_id'], content['aspect_ratio'], prompt=content['prompt'], negative_prompt=content['negative_prompt'], samples=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']))
     return serve_pil_image(images[0])
 
 
@@ -265,8 +272,8 @@ def get_music_video():
                 prompts=[prev_content[0], prompt],
                 seeds=[prev_content[1], seed],
                 num_interpolation_steps=[(timestamp - prev_content[2]) * fps],
-                height=int(models_dict[content['model_id']].split(':')[1]),
-                width=int(models_dict[content['model_id']].split(':')[0]),
+                height=int(aspect_ratios_dict[content['aspect_ratio']].split(':')[1]),
+                width=int(aspect_ratios_dict[content['aspect_ratio']].split(':')[0]),
                 audio_filepath='/home/eolszewski/nouns-ai-sd-server/audio/{}'.format(content['audio_filename']),  # Use your own file
                 audio_start_sec=prev_content[2],      # Start second of the provided audio
                 fps=fps,
@@ -328,8 +335,8 @@ def get_video():
                 seeds=[prev_content[1], seed],
                 fps=fps,
                 num_interpolation_steps=(timestamp - prev_content[3]) * fps,
-                height=int(models_dict[content['model_id']].split(':')[1]),
-                width=int(models_dict[content['model_id']].split(':')[0]),
+                height=int(aspect_ratios_dict[content['aspect_ratio']].split(':')[1]),
+                width=int(aspect_ratios_dict[content['aspect_ratio']].split(':')[0]),
                 output_dir='dreams',        # Where images/videos will be saved
                 name=str(int(time.time() * 100)),        # Subdirectory of output_dir where images/videos will be saved
                 guidance_scale=8.5,         # Higher adheres to prompt more, lower lets model take the wheel

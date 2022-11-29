@@ -36,7 +36,7 @@ CREATE TABLE users (
 CREATE TABLE images (
 	id SERIAL NOT NULL PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    model_id INTEGER NOT NULL,
+    model_id VARCHAR (128) NOT NULL,
     prompt TEXT NOT NULL,
     steps INTEGER NOT NULL,
     seed BIGINT NOT NULL,
