@@ -1,9 +1,19 @@
 # Nouns AI SD Server
 
-More to come to this page, soon!
+## Activating / Deactivating Virtual Environment
+```
+source nouns-ai/bin/activate
+deactivate
+```
 
-`gunicorn --workers 4 --bind 0.0.0.0:5000 wsgi:app --timeout 90`
+## Server Config
+### Setup
+[How we set up the server with Flask, Nginx, Gunicorn, and CertBot](https://www.digitalocean.com/community/tutorials/how-to-serve-flask-applications-with-gunicorn-and-nginx-on-ubuntu-22-04)
 
+### Restarting the server
+`sudo systemctl restart nouns-ai-sd-server`
+
+_Note: This utilizes `/etc/systemd/system/nouns-ai-sd-server.service`_
 
 # Database
 

@@ -55,7 +55,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
     for model in models_dict.keys():
         # video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16).to("cuda")
-        image_pipeline_dict[model] = StableDiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16, revision="fp16")
+        image_pipeline_dict[model] = StableDiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
         image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
         image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
         image_pipeline_dict[model].to(device)
@@ -376,5 +376,4 @@ def get_image():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
-    # app.run(host='0.0.0.0')
+    app.run(host='0.0.0.0', port='5000', ssl_context='adhoc')
