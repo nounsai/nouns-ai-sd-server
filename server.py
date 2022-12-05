@@ -4,14 +4,17 @@ import sys
 import json
 import time
 import torch
+import dropbox
+import pathlib
 
 from io import BytesIO 
 from flask_cors import CORS
 from moviepy.editor import *
 from transformers import pipeline
-from multiprocessing import Pool, cpu_count
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+from dropbox.exceptions import AuthError
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
-from diffusers.schedulers import LMSDiscreteScheduler
 # from stable_diffusion_videos import StableDiffusionWalkPipeline
 from flask import abort, Flask, request, Response, send_file
 from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users
@@ -104,6 +107,50 @@ def get_chunk(path, byte1=None, byte2=None):
         chunk = f.read(length)
     return chunk, start, length, file_size
 
+#######################################################
+####################### DROPBOX #######################
+#######################################################
+
+def dropbox_connect():
+
+    try:
+        dbx = dropbox.Dropbox(
+            app_key = config["dropbox_api_key"],
+            app_secret = config["dropbox_api_secret"],
+            oauth2_refresh_token = config["dropbox_refresh_token"]
+        )
+    except AuthError as e:
+        print("Error connecting to Dropbox with access token: " + str(e))
+    return dbx
+
+
+def dropbox_upload_file(local_path, local_file, dropbox_file_path):
+
+    try:
+        dbx = dropbox_connect()
+
+        local_file_path = pathlib.Path(local_path) / local_file
+
+        with local_file_path.open("rb") as f:
+            meta = dbx.files_upload(f.read(), dropbox_file_path, mode=dropbox.files.WriteMode("overwrite"))
+
+            return meta
+    except Exception as e:
+        print("Error uploading file to Dropbox: " + str(e))
+
+
+def dropbox_download_file(dropbox_file_path):
+
+    try:
+        dbx = dropbox_connect()
+
+        meta, file = dbx.files_download(dropbox_file_path)
+        with open(os.path.join(str(os.path.dirname(os.path.realpath(__file__))), '{}/{}'.format('audio', dropbox_file_path.split('/')[-1])), "wb") as out:
+            out.write(file.content)
+            out.close()
+
+    except Exception as e:
+        print("Error downloading file from Dropbox: " + str(e))
 
 #######################################################
 ######################### API #########################
@@ -205,7 +252,20 @@ def add_request_for_user(user_id):
             json.dumps(content['config']),
             content['config_hash']
         )
-        return {'request_id':id}, 200
+        message = Mail(
+            from_email='admin@nounsai.wtf',
+            to_emails='eolszewski@gmail.com',
+            subject='New Video Request!',
+            html_content='<p>User Id: {}\n\nModel Id: {}\n\nConfig: {}</p>'.format(user_id, content['model_id'], json.dumps(content['config']))
+        )
+        try:
+            sg = SendGridAPIClient(config['sendgrid_api_key'])
+            response = sg.send(message)
+            print(response.status_code)
+            return {'request_id':id}, 200
+        except Exception as e:
+            print("Internal server error: {}".format(str(e)))
+            return "Internal server error: {}".format(str(e)), 500
     except Exception as e:
         try:
             image = fetch_request_by_hash(content['config_hash'])
@@ -220,13 +280,22 @@ def add_audio_for_user(user_id):
     try:
         file = request.files['audio_file']
         if file:
+
+            ext = file.filename.split('.')[-1]
+            filename = ''.join([c for c in file.filename if c not in " %:/,.\\[]<>*?"])[0:-len(ext)] + '.' + file.filename.split('.')[-1]
             audio_files = fetch_audio()
             for audio_file in audio_files:
-                if audio_file['name'] == file.filename:
+                if audio_file['name'] == filename:
                     return {'audio_id':audio_file['id']}, 200
             
-            file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/' + file.filename))
-            id = add_audio(user_id, file.filename, 'placeholder')
+            file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/' + filename))
+            meta = dropbox_upload_file(
+                str(os.path.dirname(os.path.realpath(__file__))) + "/audio",
+                filename,
+                "/{}/{}".format("Audio", filename)
+            )
+            id = add_audio(user_id, filename, "/{}/{}".format("Audio", filename))
+            os.remove('audio/{}'.format(filename))
             return {'audio_id':id}, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))

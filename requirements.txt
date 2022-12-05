@@ -9,6 +9,7 @@ nvidia-ml-py3
 opencv-python==4.6.0.66
 python-dotenv
 realesrgan==0.3.0
+sendgrid==6.9.7
 sentencepiece==0.1.97
 stable_diffusion_videos==0.6.2
 torch==1.12.1
