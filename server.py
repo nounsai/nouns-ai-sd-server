@@ -14,7 +14,7 @@ from transformers import pipeline
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from dropbox.exceptions import AuthError
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
 # from stable_diffusion_videos import StableDiffusionWalkPipeline
 from flask import abort, Flask, request, Response, send_file
 from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users
@@ -58,7 +58,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
     for model in models_dict.keys():
         # video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16).to("cuda")
-        image_pipeline_dict[model] = StableDiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
+        image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
         image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
         image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
         image_pipeline_dict[model].to(device)
@@ -69,11 +69,12 @@ else:
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
 #torch.backends.cudnn.benchmark = True
 
-def infer(model_id, aspect_ratio, prompt="", negative_prompt="", samples=4, steps=20, scale=7.5, seed=1437181781):
+def infer(model_id, aspect_ratio, prompt="", negative_prompt="", samples=4, steps=25, scale=9, seed=1437181781):
     generator = torch.Generator(device=device).manual_seed(seed)
     images = image_pipeline_dict[model_id](
-        [prompt] * samples,
-        negative_prompt=[negative_prompt] * samples,
+        prompt,
+        num_images_per_prompt=samples,
+        negative_prompt=negative_prompt,
         num_inference_steps=steps,
         guidance_scale=scale,
         generator=generator,
