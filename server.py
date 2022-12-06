@@ -10,12 +10,14 @@ import pathlib
 from io import BytesIO 
 from flask_cors import CORS
 from moviepy.editor import *
+from typing import Tuple, List
 from transformers import pipeline
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from dropbox.exceptions import AuthError
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
 # from stable_diffusion_videos import StableDiffusionWalkPipeline
+from parallel import StableDiffusionMultiProcessing
 from flask import abort, Flask, request, Response, send_file
 from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users
 
@@ -34,6 +36,24 @@ CORS(app)
 #######################################################
 ####################### HELPERS #######################
 #######################################################
+
+def get_gpu_setting(env_var: str) -> Tuple[bool, List[int]]:
+    if not torch.cuda.is_available():
+        print("GPU not detected! Make sure you have a GPU to reduce inference time!")
+        return False, []
+    # reads user input, returns multi_gpu flag and gpu id(s)
+    n = torch.cuda.device_count()
+    if env_var == "all":
+        gpus = list(range(n))
+    elif "," in env_var:
+        gpus = [int(gnum) for gnum in env_var.split(",") if int(gnum) < n]
+    else:
+        gpus = [int(env_var)]
+    assert len(
+        gpus
+    ), f"Make sure to provide valid device ids! You have {n} GPU(s), you can specify the following values: {list(range(n))}"
+    return len(gpus) > 1, gpus
+    
 
 def dummy(images, **kwargs):
     return images, False
@@ -54,15 +74,32 @@ aspect_ratios_dict = {
     '16:9': '1024:576'
 }
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-if device == "cuda":
-    for model in models_dict.keys():
-        # video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16).to("cuda")
-        image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
-        image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
-        image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
-        image_pipeline_dict[model].to(device)
-        image_pipeline_dict[model].safety_checker = dummy
+# create and move model to GPU(s), defaults to GPU 0
+multi, devices = get_gpu_setting(int(config["devices"]))
+
+for model in models_dict.keys():
+    kwargs = dict(
+        pretrained_model_name_or_path=model,
+        torch_dtype=torch.float16,
+        use_auth_token=AUTH_TOKEN,
+        requires_safety_checker=False
+    )
+    if multi:
+        pipe = StableDiffusionMultiProcessing.from_pretrained(
+            len(devices), devices, model_parallel_assignment=None, **kwargs
+        )
+    else:
+        pipe: DiffusionPipeline = DiffusionPipeline.from_pretrained(
+            **kwargs
+        )
+        if len(devices):
+            pipe.to(f"cuda:{devices[0]}")
+    # video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16).to("cuda")
+    image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
+    image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
+    image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
+    image_pipeline_dict[model].to(device)
+    image_pipeline_dict[model].safety_checker = dummy
 else:
     sys.exit("Need CUDA to run this server!")
     
