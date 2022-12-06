@@ -75,7 +75,7 @@ aspect_ratios_dict = {
 }
 
 # create and move model to GPU(s), defaults to GPU 0
-multi, devices = get_gpu_setting(int(config["devices"]))
+multi, devices = get_gpu_setting(config["devices"])
 
 for model in models_dict.keys():
     kwargs = dict(
@@ -85,40 +85,43 @@ for model in models_dict.keys():
         requires_safety_checker=False
     )
     if multi:
-        pipe = StableDiffusionMultiProcessing.from_pretrained(
+        image_pipeline_dict[model] = StableDiffusionMultiProcessing.from_pretrained(
             len(devices), devices, model_parallel_assignment=None, **kwargs
         )
     else:
-        pipe: DiffusionPipeline = DiffusionPipeline.from_pretrained(
+        image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(
             **kwargs
         )
+        image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
+        image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
+        image_pipeline_dict[model].safety_checker = dummy
         if len(devices):
-            pipe.to(f"cuda:{devices[0]}")
-    # video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16).to("cuda")
-    image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
-    image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
-    image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
-    image_pipeline_dict[model].to(device)
-    image_pipeline_dict[model].safety_checker = dummy
-else:
-    sys.exit("Need CUDA to run this server!")
+            image_pipeline_dict[model].to(f"cuda:{devices[0]}")
     
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
 #torch.backends.cudnn.benchmark = True
 
 def infer(model_id, aspect_ratio, prompt="", negative_prompt="", samples=4, steps=25, scale=9, seed=1437181781):
-    generator = torch.Generator(device=device).manual_seed(seed)
-    images = image_pipeline_dict[model_id](
-        prompt,
-        num_images_per_prompt=samples,
-        negative_prompt=negative_prompt,
-        num_inference_steps=steps,
-        guidance_scale=scale,
-        generator=generator,
-        height=int(aspect_ratios_dict[aspect_ratio].split(':')[1]),
-        width=int(aspect_ratios_dict[aspect_ratio].split(':')[0])
-    ).images
-    print(images)
+    if multi:
+        # generator cant be pickled
+        # NOTE fixed seed with multiples gpus should be different for each one but fixed!
+        generator = seed
+    else:
+        generator = (
+            torch.Generator(f"cuda:{devices[0]}").manual_seed(seed)
+            if seed is not None and seed > 0
+            else None
+        )
+    with torch.autocast("cuda"):
+        images = image_pipeline_dict[model_id](
+            [prompt] * samples,
+            negative_prompt=[negative_prompt] * samples,
+            num_inference_steps=steps,
+            guidance_scale=scale,
+            generator=generator,
+            height=int(aspect_ratios_dict[aspect_ratio].split(':')[1]),
+            width=int(aspect_ratios_dict[aspect_ratio].split(':')[0])
+        ).images
     return images
 
 
