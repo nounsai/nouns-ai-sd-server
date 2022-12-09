@@ -41,8 +41,7 @@ def dummy(images, **kwargs):
 image_pipeline_dict = {}
 # video_pipeline_dict = {}
 models_dict = {
-    'alxdfy/noggles9000': '768:768', 
-    'alxdfy/noggles-fastdb-4800': '1024:576', 
+    'alxdfy/noggles-v21-3400-30percent': '768:768', 
     'nitrosocke/Ghibli-Diffusion': '512:704',
     'nitrosocke/Nitro-Diffusion': '512:768'
 }
@@ -61,8 +60,6 @@ if device == "cuda":
         image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
         image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
         image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
-        image_pipeline_dict[model].to(device)
-        image_pipeline_dict[model].safety_checker = dummy
 else:
     sys.exit("Need CUDA to run this server!")
     
