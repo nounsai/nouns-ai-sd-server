@@ -56,7 +56,7 @@ aspect_ratios_dict = {
 device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
     for model in models_dict.keys():
-        video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
+        video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, feature_extractor=None, safety_checker=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
         video_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(video_pipeline_dict[model].scheduler.config)
         video_pipeline_dict[model] = video_pipeline_dict[model].to("cuda")
 else:
