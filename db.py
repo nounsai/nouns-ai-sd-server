@@ -253,6 +253,7 @@ def fetch_requests_for_user(user_id):
     conn = open_connection()
     sql = "SELECT * FROM requests where user_id={} order by id desc;".format(user_id)
     requests_df = pd.read_sql_query(sql, conn)
+    requests_df['config'] = requests_df['config'].replace("'","''")
     close_connection(conn)
     return json.loads(requests_df.to_json(orient="records"))
 
@@ -262,6 +263,7 @@ def fetch_request_by_id(id):
     conn = open_connection()
     sql = "SELECT * FROM requests WHERE id={};".format(id)
     requests_df = pd.read_sql_query(sql, conn)
+    requests_df['config'] = requests_df['config'].replace("'","''")
     close_connection(conn)
     return json.loads(requests_df.to_json(orient="records"))[0]
 
