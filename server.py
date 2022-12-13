@@ -247,6 +247,7 @@ def add_request_for_user(user_id):
         id = add_request(
             user_id, 
             content['model_id'], 
+            content['aspect_ratio'],
             json.dumps(content['config']).replace("'","''"),
             content['config_hash']
         )
@@ -254,7 +255,7 @@ def add_request_for_user(user_id):
             from_email='admin@nounsai.wtf',
             to_emails='eolszewski@gmail.com',
             subject='New Video Request!',
-            html_content='<p>User Id: {}\n\nModel Id: {}\n\nConfig: {}</p>'.format(user_id, content['model_id'], json.dumps(content['config']))
+            html_content='<p>User Id: {}\n\nModel Id: {}\n\nAspect Ratio: {}\n\nConfig: {}</p>'.format(user_id, content['model_id'], content['aspect_ratio'], json.dumps(content['config']))
         )
         try:
             sg = SendGridAPIClient(config['sendgrid_api_key'])

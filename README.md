@@ -78,6 +78,7 @@ CREATE TABLE requests (
 	id SERIAL NOT NULL PRIMARY KEY,
     user_id INTEGER NOT NULL,
     model_id INTEGER NOT NULL,
+    aspect_ratio VARCHAR (12) NOT NULL,
     config TEXT NOT NULL,
     config_hash VARCHAR (256) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
