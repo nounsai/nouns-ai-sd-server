@@ -41,7 +41,7 @@ def dummy(images, **kwargs):
 image_pipeline_dict = {}
 # video_pipeline_dict = {}
 models_dict = {
-    'alxdfy/noggles-v21-3400-30percent': '768:768', 
+    'alxdfy/noggles-v21-6400-best': '768:768', 
     'nitrosocke/Ghibli-Diffusion': '512:704',
     'nitrosocke/Nitro-Diffusion': '512:768'
 }
@@ -66,7 +66,7 @@ else:
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
 #torch.backends.cudnn.benchmark = True
 
-def infer(model_id, aspect_ratio, prompt="", negative_prompt="", samples=4, steps=25, scale=9, seed=1437181781):
+def infer(model_id, aspect_ratio, prompt="", negative_prompt="", samples=4, steps=25, scale=7, seed=1437181781):
     generator = torch.Generator(device=device).manual_seed(seed)
     images = image_pipeline_dict[model_id](
         prompt,
@@ -247,7 +247,7 @@ def add_request_for_user(user_id):
         id = add_request(
             user_id, 
             content['model_id'], 
-            json.dumps(content['config']),
+            json.dumps(content['config']).replace("'","''"),
             content['config_hash']
         )
         message = Mail(
