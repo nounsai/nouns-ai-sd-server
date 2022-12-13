@@ -12,7 +12,7 @@ from flask_cors import CORS
 from moviepy.editor import *
 from transformers import pipeline
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import *
 from dropbox.exceptions import AuthError
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
 from stable_diffusion_videos import StableDiffusionWalkPipeline
@@ -430,7 +430,7 @@ def process_request(request_id):
 
         message = Mail(
             from_email='admin@nounsai.wtf',
-            to_emails='eolszewski@gmail.com',
+            to_emails=[To('theheroshep@gmail.com'), To('eolszewski@gmail.com')],
             subject='Your Video Has Processed!',
             html_content='<p>Download here: {}</p>'.format(link)
         )
