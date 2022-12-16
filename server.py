@@ -12,12 +12,12 @@ from flask_cors import CORS
 from moviepy.editor import *
 from transformers import pipeline
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import *
 from dropbox.exceptions import AuthError
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
 # from stable_diffusion_videos import StableDiffusionWalkPipeline
 from flask import abort, Flask, request, Response, send_file
-from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_code_by_hash, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users, update_code_by_hash
+from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_code_by_hash, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_user_by_id, fetch_users, update_code_by_hash
 
 currentdir = os.path.dirname(os.path.realpath(__file__))
 
@@ -57,7 +57,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
     for model in models_dict.keys():
         # video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16).to("cuda")
-        image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
+        image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(model, safety_checker=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
         image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
         image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
 else:
@@ -255,11 +255,12 @@ def add_request_for_user(user_id):
             json.dumps(content['config']).replace("'","''"),
             content['config_hash']
         )
+        user = fetch_user_by_id(user_id)
         message = Mail(
             from_email='admin@nounsai.wtf',
-            to_emails='eolszewski@gmail.com',
+            to_emails=[To('theheroshep@gmail.com'), To('eolszewski@gmail.com')],
             subject='New Video Request!',
-            html_content='<p>User Id: {}\n\nModel Id: {}\n\nAspect Ratio: {}\n\nConfig: {}</p>'.format(user_id, content['model_id'], content['aspect_ratio'], json.dumps(content['config']))
+            html_content='<p>Request Id: {}</p><p>User Email: {}</p><p>Model Id: {}</p><p>Aspect Ratio: {}</p><p>Config: {}</p>'.format(id, user['email'], content['model_id'], content['aspect_ratio'], json.dumps(content['config']))
         )
         try:
             sg = SendGridAPIClient(config['sendgrid_api_key'])
