@@ -368,10 +368,11 @@ def fetch_code_by_hash(hash):
 def update_code_by_hash(hash):
 
     conn = open_connection()
-    sql = "UPDATE codes SET valid=false where code='{}';".format(hash)
-    codes_df = pd.read_sql_query(sql, conn)
+    cur = create_cursor(conn)
+    cur.execute("UPDATE codes SET valid=false where code='{}';".format(hash))
+    close_cursor(cur)
+    conn.commit()
     close_connection(conn)
-    return json.loads(codes_df.to_json(orient="records"))[0]
 
 
 def add_code(hash):
