@@ -17,7 +17,7 @@ from dropbox.exceptions import AuthError
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
 # from stable_diffusion_videos import StableDiffusionWalkPipeline
 from flask import abort, Flask, request, Response, send_file
-from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users
+from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_code_by_hash, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users, update_code_by_hash
 
 currentdir = os.path.dirname(os.path.realpath(__file__))
 
@@ -160,11 +160,15 @@ def create_user():
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
     
+    if len(fetch_code_by_hash(content['password_hash'])) == 0:
+        return "Invalid Code", 400
+
     try:
         id = add_user(
             content['email'], 
             content['password_hash']
         )
+        update_code_by_hash(content['password_hash'])
         return {'user_id':id}, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))

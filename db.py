@@ -352,6 +352,42 @@ def add_audio(user_id, name, url):
 
 
 ########################################################
+######################### CODES ########################
+########################################################
+
+
+def fetch_code_by_hash(hash):
+
+    conn = open_connection()
+    sql = "SELECT * FROM codes where code='{}' and valid=true;".format(hash)
+    codes_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(codes_df.to_json(orient="records"))
+
+
+def update_code_by_hash(hash):
+
+    conn = open_connection()
+    sql = "UPDATE codes SET valid=false where code='{}';".format(hash)
+    codes_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(codes_df.to_json(orient="records"))[0]
+
+
+def add_code(hash):
+    
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("INSERT INTO codes (code) VALUES ('{}') RETURNING id;".format(hash))
+    id = cur.fetchone()[0]
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return id
+
+
+
+########################################################
 #################### TEST COMMANDS #####################
 ########################################################
 

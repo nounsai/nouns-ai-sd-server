@@ -86,3 +86,14 @@ CREATE TABLE requests (
     UNIQUE (user_id, model_id, config_hash)
 );
 ```
+
+## Codes
+
+```
+CREATE TABLE codes (
+	id SERIAL NOT NULL PRIMARY KEY,
+    code VARCHAR (256) NOT NULL,
+    valid BOOLEAN NOT NULL DEFAULT true,
+    UNIQUE (code)
+);
+```
