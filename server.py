@@ -288,18 +288,20 @@ def add_audio_for_user(user_id):
             ext = file.filename.split('.')[-1]
             filename = ''.join([c for c in file.filename if c not in " %:/,.\\[]<>*?"])[0:-len(ext)] + '.' + file.filename.split('.')[-1]
             audio_files = fetch_audio()
+            file.seek(0, os.SEEK_END)
+            file_size = file.tell()
             for audio_file in audio_files:
-                if audio_file['name'] == filename:
+                if audio_file['name'] == filename and audio_file['user_id'] == user_id and audio_file['size'] == file_size:
                     return {'audio_id':audio_file['id']}, 200
             
-            file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/' + filename))
+            file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/{}_{}_{}'.format(user_id, file_size, filename)))
             meta = dropbox_upload_file(
                 str(os.path.dirname(os.path.realpath(__file__))) + "/audio",
-                filename,
-                "/{}/{}".format("Audio", filename)
+                '{}_{}_{}'.format(user_id, file_size, filename),
+                "/{}/{}".format("Audio", '{}_{}_{}'.format(user_id, file_size, filename))
             )
-            id = add_audio(user_id, filename, "/{}/{}".format("Audio", filename))
-            os.remove('audio/{}'.format(filename))
+            id = add_audio(user_id, filename, "/{}/{}".format("Audio", '{}_{}_{}'.format(user_id, file_size, filename)), file_size)
+            os.remove('audio/{}_{}_{}'.format(user_id, file_size, filename))
             return {'audio_id':id}, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))

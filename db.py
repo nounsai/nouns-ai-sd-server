@@ -339,11 +339,11 @@ def delete_audio_by_id(id):
     close_connection(conn)
 
 
-def add_audio(user_id, name, url):
+def add_audio(user_id, name, url, size):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO audio (user_id, name, url) VALUES (%s, %s, %s) RETURNING id;", (user_id, name, url))
+    cur.execute("INSERT INTO audio (user_id, name, url, size) VALUES (%s, %s, %s, %s) RETURNING id;", (user_id, name, url, size))
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
