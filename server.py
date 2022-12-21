@@ -385,7 +385,7 @@ def process_request(request_id):
         request_config = json.loads(request_object['config'])
         audio = fetch_audio_by_id(request_config['audio_id'])
         dropbox_download_file(audio['url'])
-        audio_path = "{}/audio/{}".format(currentdir, audio['name'])
+        audio_path = "{}/audio/{}".format(currentdir, audio['url'].split('/')[-1])
         print('audio_path: ', audio_path)
 
         for i in range(0, len(request_config['prompts'])):
