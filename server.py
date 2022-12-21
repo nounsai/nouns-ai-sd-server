@@ -448,11 +448,11 @@ def process_request(request_id):
         convert_mp4_to_mov(input_file, output_file)
         meta = dropbox_upload_file(
             str(os.path.dirname(os.path.realpath(__file__))) + "/dreams",
-            '{}.mp4'.format(request_id),
-            "/{}/{}".format("Video", '{}.mp4'.format(request_id))
+            '{}.mov'.format(request_id),
+            "/{}/{}".format("Video", '{}.mov'.format(request_id))
         )
         print('sucessfully uploaded to dropbox')
-        link = dropbox_get_link("/{}/{}".format("Video", '{}.mp4'.format(request_id)))
+        link = dropbox_get_link("/{}/{}".format("Video", '{}.mov'.format(request_id)))
         print('link: ', link)
 
         message = Mail(
