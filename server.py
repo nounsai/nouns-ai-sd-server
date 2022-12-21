@@ -291,9 +291,9 @@ def add_audio_for_user(user_id):
             file.seek(0, os.SEEK_END)
             file_size = file.tell()
             for audio_file in audio_files:
-                if audio_file['name'] == filename and audio_file['user_id'] == user_id and audio_file['size'] == file_size:
+                if audio_file['name'] == filename and str(audio_file['user_id']) == str(user_id) and audio_file['size'] == file_size:
                     return {'audio_id':audio_file['id']}, 200
-            
+
             file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/{}_{}_{}'.format(user_id, file_size, filename)))
             meta = dropbox_upload_file(
                 str(os.path.dirname(os.path.realpath(__file__))) + "/audio",
