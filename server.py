@@ -6,6 +6,7 @@ import time
 import torch
 import dropbox
 import pathlib
+import subprocess
 
 from io import BytesIO 
 from flask_cors import CORS
@@ -31,19 +32,12 @@ else:
 app = Flask(__name__)
 CORS(app)
 
-#######################################################
-####################### HELPERS #######################
-#######################################################
-
-def dummy(images, **kwargs):
-    return images, False
-
 # image_pipeline_dict = {}
 video_pipeline_dict = {}
 models_dict = {
     'alxdfy/noggles-v21-6400-best': '768:768', 
-    'nitrosocke/Ghibli-Diffusion': '512:704',
-    'nitrosocke/Nitro-Diffusion': '512:768'
+    # 'nitrosocke/Ghibli-Diffusion': '512:704',
+    # 'nitrosocke/Nitro-Diffusion': '512:768'
 }
 aspect_ratios_dict = {
     '1:1': '768:768', 
@@ -52,6 +46,18 @@ aspect_ratios_dict = {
     '9:16': '576:1024', 
     '16:9': '1024:576'
 }
+
+#######################################################
+####################### HELPERS #######################
+#######################################################
+
+def dummy(images, **kwargs):
+    return images, False
+
+def convert_mp4_to_mov(input_file, output_file):
+    command = ['ffmpeg', '-i', input_file, output_file]
+    subprocess.run(command)
+
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
@@ -428,10 +434,31 @@ def process_request(request_id):
         link = dropbox_get_link("/{}/{}".format("Video", concat_video_name))
         print('link: ', link)
 
+        video = VideoFileClip(concat_video_path)
+        audio = AudioFileClip(audio_path)
+        try:
+            audio = audio.subclip(0, video.duration)
+        except Exception as e:
+            print('exception in clipping audio: ', e)
+            pass
+        video = video.set_audio(audio)
+        video.write_videofile('dreams/{}.mp4'.format(request_id))
+        input_file = 'dreams/{}.mp4'.format(request_id)
+        output_file = 'dreams/{}.mov'.format(request_id)
+        convert_mp4_to_mov(input_file, output_file)
+        meta = dropbox_upload_file(
+            str(os.path.dirname(os.path.realpath(__file__))) + "/dreams",
+            '{}.mp4'.format(request_id),
+            "/{}/{}".format("Video", '{}.mp4'.format(request_id))
+        )
+        print('sucessfully uploaded to dropbox')
+        link = dropbox_get_link("/{}/{}".format("Video", '{}.mp4'.format(request_id)))
+        print('link: ', link)
+
         message = Mail(
             from_email='admin@nounsai.wtf',
             to_emails=[To('theheroshep@gmail.com'), To('eolszewski@gmail.com')],
-            subject='Your Video Has Processed!',
+            subject='Video #{} Has Processed!'.format(request_id),
             html_content='<p>Download here: {}</p>'.format(link)
         )
         sg = SendGridAPIClient(config['sendgrid_api_key'])
