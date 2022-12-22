@@ -437,7 +437,7 @@ def process_request(request_id):
         video = VideoFileClip(concat_video_path)
         audio = AudioFileClip(audio_path)
         try:
-            audio = audio.subclip(0, video.duration)
+            audio = audio.subclip(0, min(video.duration, audio.duration))
         except Exception as e:
             print('exception in clipping audio: ', e)
             pass
