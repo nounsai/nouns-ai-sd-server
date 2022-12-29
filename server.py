@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import json
+import glob
 import time
 import torch
 import dropbox
@@ -424,15 +425,6 @@ def process_request(request_id):
         concat_video = concatenate_videoclips(videos_list)
         concat_video.to_videofile(concat_video_path, fps=fps, remove_temp=False)
         print('concat_video_path: ', concat_video_path)
-        
-        meta = dropbox_upload_file(
-            str(os.path.dirname(os.path.realpath(__file__))) + "/dreams",
-            concat_video_name,
-            "/{}/{}".format("Video", concat_video_name)
-        )
-        print('sucessfully uploaded to dropbox')
-        link = dropbox_get_link("/{}/{}".format("Video", concat_video_name))
-        print('link: ', link)
 
         video = VideoFileClip(concat_video_path)
         audio = AudioFileClip(audio_path)
@@ -464,6 +456,11 @@ def process_request(request_id):
         sg = SendGridAPIClient(config['sendgrid_api_key'])
         response = sg.send(message)
         print('sendgrid response: ', response.status_code)
+
+        os.remove(audio_path)
+        files = glob.glob('dreams/*')
+        for f in files:
+            os.remove(f)
 
         return {'status':'success'}, 200
         
