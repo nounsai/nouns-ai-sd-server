@@ -2,9 +2,9 @@ import os
 import re
 import sys
 import json
-import glob
 import time
 import torch
+import shutil
 import dropbox
 import pathlib
 import subprocess
@@ -408,20 +408,20 @@ def process_request(request_id):
                     audio_start_sec=prev_content[2],
                     fps=fps,
                     output_dir='dreams',
-                    name=str(int(time.time() * 100)),
+                    name='{}/{}'.format(request_id, str(int(time.time() * 100))),
                 )
                 video_paths_list.append(video_path)
                 prev_content = (prompt, seed, timestamp)
 
+        print('video_paths_list: ', video_paths_list)
         videos_list = []
         for file in video_paths_list:
             filePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), file)
             video = VideoFileClip(filePath)
             videos_list.append(video)
 
-        print('videos_list: ', videos_list)
         concat_video_name = str(int(time.time() * 100)) + '.mp4'
-        concat_video_path = 'dreams/' + concat_video_name
+        concat_video_path = 'dreams/{}/{}'.format(request_id, concat_video_name)
         concat_video = concatenate_videoclips(videos_list)
         concat_video.to_videofile(concat_video_path, fps=fps, remove_temp=False)
         print('concat_video_path: ', concat_video_path)
@@ -434,16 +434,16 @@ def process_request(request_id):
             print('exception in clipping audio: ', e)
             pass
         video = video.set_audio(audio)
-        video.write_videofile('dreams/{}.mp4'.format(request_id))
-        input_file = 'dreams/{}.mp4'.format(request_id)
-        output_file = 'dreams/{}.mov'.format(request_id)
+        video.write_videofile('dreams/{}/{}.mp4'.format(request_id, request_id))
+        input_file = 'dreams/{}/{}.mp4'.format(request_id, request_id)
+        output_file = 'dreams/{}/{}.mov'.format(request_id, request_id)
         convert_mp4_to_mov(input_file, output_file)
         meta = dropbox_upload_file(
-            str(os.path.dirname(os.path.realpath(__file__))) + "/dreams",
+            str(os.path.dirname(os.path.realpath(__file__))) + "/dreams/{}".format(request_id),
             '{}.mov'.format(request_id),
             "/{}/{}".format("Video", '{}.mov'.format(request_id))
         )
-        print('sucessfully uploaded to dropbox')
+        print('successfully uploaded to dropbox')
         link = dropbox_get_link("/{}/{}".format("Video", '{}.mov'.format(request_id)))
         print('link: ', link)
 
@@ -458,9 +458,7 @@ def process_request(request_id):
         print('sendgrid response: ', response.status_code)
 
         os.remove(audio_path)
-        files = glob.glob('dreams/*')
-        for f in files:
-            os.remove(f)
+        shutil.rmtree('dreams/{}'.format(request_id))
 
         return {'status':'success'}, 200
         
