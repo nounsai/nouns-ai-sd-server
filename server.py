@@ -389,6 +389,11 @@ def process_request(request_id):
         audio_path = "{}/audio/{}".format(currentdir, audio['url'].split('/')[-1])
         print('audio_path: ', audio_path)
 
+        try:
+            os.mkdir("{}/dreams/{}".format(currentdir, request_id))
+        except Exception as e:
+            print("Error creating directory: {}".format(str(e)))
+
         for i in range(0, len(request_config['prompts'])):
             prompt = request_config['prompts'][i]
             seed = int(request_config['seeds'][i])
@@ -407,8 +412,8 @@ def process_request(request_id):
                     audio_filepath=audio_path,
                     audio_start_sec=prev_content[2],
                     fps=fps,
-                    output_dir='dreams',
-                    name='{}/{}'.format(request_id, str(int(time.time() * 100))),
+                    output_dir='dreams/{}'.format(request_id),
+                    name=str(int(time.time() * 100)),
                 )
                 video_paths_list.append(video_path)
                 prev_content = (prompt, seed, timestamp)
