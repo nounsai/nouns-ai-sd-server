@@ -57,6 +57,7 @@ CREATE TABLE images (
     user_id INTEGER NOT NULL,
     model_id VARCHAR (128) NOT NULL,
     prompt TEXT NOT NULL,
+    negative_prompt TEXT,
     steps INTEGER NOT NULL,
     seed BIGINT NOT NULL,
     base_64 TEXT NOT NULL,

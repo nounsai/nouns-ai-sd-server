@@ -203,6 +203,7 @@ def add_image_for_user(user_id):
             user_id, 
             content['model_id'], 
             content['prompt'], 
+            content['negative_prompt'], 
             content['steps'], 
             content['seed'], 
             content['base_64'], 

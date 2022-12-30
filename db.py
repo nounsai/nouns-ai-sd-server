@@ -198,11 +198,11 @@ def fetch_image_by_hash(hash):
     return json.loads(images_df.to_json(orient="records"))[0]
 
 
-def add_image(user_id, model_id, prompt, steps, seed, base_64, image_hash, aspect_ratio):
+def add_image(user_id, model_id, prompt, negative_prompt, steps, seed, base_64, image_hash, aspect_ratio):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO images (user_id, model_id, prompt, steps, seed, base_64, image_hash, aspect_ratio) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;", (user_id, model_id, prompt, steps, seed, base_64, image_hash, aspect_ratio))
+    cur.execute("INSERT INTO images (user_id, model_id, prompt, negative_prompt, steps, seed, base_64, image_hash, aspect_ratio) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;", (user_id, model_id, prompt, negative_prompt, steps, seed, base_64, image_hash, aspect_ratio))
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
