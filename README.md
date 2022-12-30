@@ -78,10 +78,22 @@ CREATE TABLE requests (
 	id SERIAL NOT NULL PRIMARY KEY,
     user_id INTEGER NOT NULL,
     model_id INTEGER NOT NULL,
+    aspect_ratio VARCHAR (12) NOT NULL,
     config TEXT NOT NULL,
     config_hash VARCHAR (256) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     queued BOOLEAN NOT NULL DEFAULT true,
     UNIQUE (user_id, model_id, config_hash)
+);
+```
+
+## Codes
+
+```
+CREATE TABLE codes (
+	id SERIAL NOT NULL PRIMARY KEY,
+    code VARCHAR (256) NOT NULL,
+    valid BOOLEAN NOT NULL DEFAULT true,
+    UNIQUE (code)
 );
 ```

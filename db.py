@@ -285,11 +285,11 @@ def fetch_request_by_hash(hash):
     return json.loads(requests_df.to_json(orient="records"))[0]
 
 
-def add_request(user_id, model_id, config, config_hash):
+def add_request(user_id, model_id, aspect_ratio, config, config_hash):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO requests (user_id, model_id, config, config_hash) VALUES ({}, \'{}\', \'{}\', \'{}\') RETURNING id;".format(user_id, model_id, config, config_hash))
+    cur.execute("INSERT INTO requests (user_id, model_id, aspect_ratio, config, config_hash) VALUES ({}, \'{}\', \'{}\', \'{}\', \'{}\') RETURNING id;".format(user_id, model_id, aspect_ratio, config, config_hash))
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
@@ -339,16 +339,53 @@ def delete_audio_by_id(id):
     close_connection(conn)
 
 
-def add_audio(user_id, name, url):
+def add_audio(user_id, name, url, size):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO audio (user_id, name, url) VALUES (%s, %s, %s) RETURNING id;", (user_id, name, url))
+    cur.execute("INSERT INTO audio (user_id, name, url, size) VALUES (%s, %s, %s, %s) RETURNING id;", (user_id, name, url, size))
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
     return id
+
+
+########################################################
+######################### CODES ########################
+########################################################
+
+
+def fetch_code_by_hash(hash):
+
+    conn = open_connection()
+    sql = "SELECT * FROM codes where code='{}' and valid=true;".format(hash)
+    codes_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(codes_df.to_json(orient="records"))
+
+
+def update_code_by_hash(hash):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE codes SET valid=false where code='{}';".format(hash))
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
+def add_code(hash):
+    
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("INSERT INTO codes (code) VALUES ('{}') RETURNING id;".format(hash))
+    id = cur.fetchone()[0]
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return id
+
 
 
 ########################################################

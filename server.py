@@ -13,13 +13,13 @@ from moviepy.editor import *
 from typing import Tuple, List
 from transformers import pipeline
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import *
 from dropbox.exceptions import AuthError
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
 # from stable_diffusion_videos import StableDiffusionWalkPipeline
 from parallel import StableDiffusionMultiProcessing
 from flask import abort, Flask, request, Response, send_file
-from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_users
+from db import add_audio, add_image, add_request, add_user, delete_image_by_id, fetch_audio, fetch_code_by_hash, fetch_image_by_hash, fetch_images_for_user, fetch_request_by_hash, fetch_user_by_id, fetch_users, update_code_by_hash
 
 currentdir = os.path.dirname(os.path.realpath(__file__))
 
@@ -61,8 +61,7 @@ def dummy(images, **kwargs):
 image_pipeline_dict = {}
 # video_pipeline_dict = {}
 models_dict = {
-    'alxdfy/noggles9000': '768:768', 
-    'alxdfy/noggles-fastdb-4800': '1024:576', 
+    'alxdfy/noggles-v21-6400-best': '768:768', 
     'nitrosocke/Ghibli-Diffusion': '512:704',
     'nitrosocke/Nitro-Diffusion': '512:768'
 }
@@ -74,54 +73,33 @@ aspect_ratios_dict = {
     '16:9': '1024:576'
 }
 
-# create and move model to GPU(s), defaults to GPU 0
-multi, devices = get_gpu_setting(config["devices"])
 
-for model in models_dict.keys():
-    kwargs = dict(
-        pretrained_model_name_or_path=model,
-        torch_dtype=torch.float16,
-        use_auth_token=AUTH_TOKEN,
-        requires_safety_checker=False
-    )
-    if multi:
-        image_pipeline_dict[model] = StableDiffusionMultiProcessing.from_pretrained(
-            len(devices), devices, model_parallel_assignment=None, **kwargs
-        )
-    else:
-        image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(
-            **kwargs
-        )
+device = "cuda" if torch.cuda.is_available() else "cpu"
+if device == "cuda":
+    for model in models_dict.keys():
+        # video_pipeline_dict[model] = StableDiffusionWalkPipeline.from_pretrained(model, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16).to("cuda")
+        image_pipeline_dict[model] = DiffusionPipeline.from_pretrained(model, safety_checker=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
         image_pipeline_dict[model].scheduler = DPMSolverMultistepScheduler.from_config(image_pipeline_dict[model].scheduler.config)
         image_pipeline_dict[model] = image_pipeline_dict[model].to("cuda")
-        image_pipeline_dict[model].safety_checker = dummy
-        if len(devices):
-            image_pipeline_dict[model].to(f"cuda:{devices[0]}")
+else:
+    sys.exit("Need CUDA to run this server!")
     
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
 #torch.backends.cudnn.benchmark = True
 
-def infer(model_id, aspect_ratio, prompt="", negative_prompt="", samples=4, steps=25, scale=9, seed=1437181781):
-    if multi:
-        # generator cant be pickled
-        # NOTE fixed seed with multiples gpus should be different for each one but fixed!
-        generator = seed
-    else:
-        generator = (
-            torch.Generator(f"cuda:{devices[0]}").manual_seed(seed)
-            if seed is not None and seed > 0
-            else None
-        )
-    with torch.autocast("cuda"):
-        images = image_pipeline_dict[model_id](
-            [prompt] * samples,
-            negative_prompt=[negative_prompt] * samples,
-            num_inference_steps=steps,
-            guidance_scale=scale,
-            generator=generator,
-            height=int(aspect_ratios_dict[aspect_ratio].split(':')[1]),
-            width=int(aspect_ratios_dict[aspect_ratio].split(':')[0])
-        ).images
+
+def infer(model_id, aspect_ratio, prompt="", negative_prompt="", samples=4, steps=25, scale=7, seed=1437181781):
+    generator = torch.Generator(device=device).manual_seed(seed)
+    images = image_pipeline_dict[model_id](
+        prompt,
+        num_images_per_prompt=samples,
+        negative_prompt=negative_prompt,
+        num_inference_steps=steps,
+        guidance_scale=scale,
+        generator=generator,
+        height=int(aspect_ratios_dict[aspect_ratio].split(':')[1]),
+        width=int(aspect_ratios_dict[aspect_ratio].split(':')[0])
+    ).images
     return images
 
 
@@ -203,11 +181,15 @@ def create_user():
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['roko_challenge_token']:
         return "'challenge-token' header missing / invalid", 401
     
+    if len(fetch_code_by_hash(content['password_hash'])) == 0:
+        return "Invalid Code", 400
+
     try:
         id = add_user(
             content['email'], 
             content['password_hash']
         )
+        update_code_by_hash(content['password_hash'])
         return {'user_id':id}, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
@@ -290,14 +272,16 @@ def add_request_for_user(user_id):
         id = add_request(
             user_id, 
             content['model_id'], 
-            json.dumps(content['config']),
+            content['aspect_ratio'],
+            json.dumps(content['config']).replace("'","''"),
             content['config_hash']
         )
+        user = fetch_user_by_id(user_id)
         message = Mail(
             from_email='admin@nounsai.wtf',
-            to_emails='eolszewski@gmail.com',
+            to_emails=[To('theheroshep@gmail.com'), To('eolszewski@gmail.com')],
             subject='New Video Request!',
-            html_content='<p>User Id: {}\n\nModel Id: {}\n\nConfig: {}</p>'.format(user_id, content['model_id'], json.dumps(content['config']))
+            html_content='<p>Request Id: {}</p><p>User Email: {}</p><p>Model Id: {}</p><p>Aspect Ratio: {}</p><p>Config: {}</p>'.format(id, user['email'], content['model_id'], content['aspect_ratio'], json.dumps(content['config']))
         )
         try:
             sg = SendGridAPIClient(config['sendgrid_api_key'])
@@ -325,18 +309,21 @@ def add_audio_for_user(user_id):
             ext = file.filename.split('.')[-1]
             filename = ''.join([c for c in file.filename if c not in " %:/,.\\[]<>*?"])[0:-len(ext)] + '.' + file.filename.split('.')[-1]
             audio_files = fetch_audio()
+            file.seek(0, os.SEEK_END)
+            file_size = file.tell()
             for audio_file in audio_files:
-                if audio_file['name'] == filename:
+                if audio_file['name'] == filename and str(audio_file['user_id']) == str(user_id) and audio_file['size'] == file_size:
                     return {'audio_id':audio_file['id']}, 200
             
-            file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/' + filename))
+            file.seek(0)
+            file.save(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'audio/{}_{}_{}'.format(user_id, file_size, filename)))
             meta = dropbox_upload_file(
                 str(os.path.dirname(os.path.realpath(__file__))) + "/audio",
-                filename,
-                "/{}/{}".format("Audio", filename)
+                '{}_{}_{}'.format(user_id, file_size, filename),
+                "/{}/{}".format("Audio", '{}_{}_{}'.format(user_id, file_size, filename))
             )
-            id = add_audio(user_id, filename, "/{}/{}".format("Audio", filename))
-            os.remove('audio/{}'.format(filename))
+            id = add_audio(user_id, filename, "/{}/{}".format("Audio", '{}_{}_{}'.format(user_id, file_size, filename)), file_size)
+            os.remove('audio/{}_{}_{}'.format(user_id, file_size, filename))
             return {'audio_id':id}, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
