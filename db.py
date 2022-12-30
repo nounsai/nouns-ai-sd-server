@@ -2,24 +2,16 @@
 # -*- coding: utf-8; py-indent-offset:4 -*-
 
 import os
-import cv2
 import json
-import numpy
-import base64
-import hashlib
 import psycopg2
 import warnings
 import pandas as pd
 import psycopg2.extras
-
-from PIL import Image
-from io import BytesIO
 from configparser import ConfigParser
 
 warnings.simplefilter(action='ignore', category=UserWarning)
 
 LOGGING = False
-
 
 def config(section='postgresql'):
 
@@ -28,12 +20,8 @@ def config(section='postgresql'):
     else:
         filename = str(os.path.dirname(os.path.realpath(__file__))) + "/database.ini"
 
-    # create a parser
     parser = ConfigParser()
-    # read config file
     parser.read(filename)
-
-    # get section, default to postgresql
     db = {}
     if parser.has_section(section):
         params = parser.items(section)
@@ -44,13 +32,10 @@ def config(section='postgresql'):
 
     return db
 
-
 ########################################################
 ####################### HELPERS ########################
 ########################################################
 
-
-# Open the connection with PostgreSQL
 def open_connection():
 
     conn = None
@@ -64,7 +49,6 @@ def open_connection():
         print(error)
 
 
-# Close the connection with PostgreSQL
 def close_connection(conn):
 
     conn.close()
@@ -72,23 +56,19 @@ def close_connection(conn):
         print('Database connection closed.')
 
 
-# Open the cursor with PostgreSQL
 def create_cursor(conn):
 
     cur = conn.cursor()
     return cur
 
 
-# Close the cursor with PostgreSQL
 def close_cursor(cur):
 
     cur.close()
 
-
 ########################################################
 ######################## MODELS ########################
 ########################################################
-
 
 def fetch_models():
 
@@ -126,11 +106,9 @@ def add_model(model_id):
     conn.commit()
     close_connection(conn)
 
-
 ########################################################
 ######################### USERS ########################
 ########################################################
-
 
 def fetch_users():
 
@@ -170,11 +148,9 @@ def add_user(email, password_hash):
     close_connection(conn)
     return id
 
-
 ########################################################
 ######################## IMAGES ########################
 ########################################################
-
 
 def fetch_images():
 
@@ -233,11 +209,9 @@ def add_image(user_id, model_id, prompt, steps, seed, base_64, image_hash, aspec
     close_connection(conn)
     return id
 
-
 ########################################################
 ####################### REQUESTS #######################
 ########################################################
-
 
 def fetch_requests():
 
@@ -253,6 +227,7 @@ def fetch_requests_for_user(user_id):
     conn = open_connection()
     sql = "SELECT * FROM requests where user_id={} order by id desc;".format(user_id)
     requests_df = pd.read_sql_query(sql, conn)
+    requests_df['config'] = requests_df['config'].replace("'","''")
     close_connection(conn)
     return json.loads(requests_df.to_json(orient="records"))
 
@@ -262,6 +237,7 @@ def fetch_request_by_id(id):
     conn = open_connection()
     sql = "SELECT * FROM requests WHERE id={};".format(id)
     requests_df = pd.read_sql_query(sql, conn)
+    requests_df['config'] = requests_df['config'].replace("'","''")
     close_connection(conn)
     return json.loads(requests_df.to_json(orient="records"))[0]
 
@@ -296,11 +272,9 @@ def add_request(user_id, model_id, aspect_ratio, config, config_hash):
     close_connection(conn)
     return id
 
-
 ########################################################
 ######################## AUDIO #########################
 ########################################################
-
 
 def fetch_audio():
 
@@ -350,11 +324,9 @@ def add_audio(user_id, name, url, size):
     close_connection(conn)
     return id
 
-
 ########################################################
 ######################### CODES ########################
 ########################################################
-
 
 def fetch_code_by_hash(hash):
 
@@ -385,32 +357,3 @@ def add_code(hash):
     conn.commit()
     close_connection(conn)
     return id
-
-
-
-########################################################
-#################### TEST COMMANDS #####################
-########################################################
-
-# id = add_user('eolszewski@gmail.com', '2d90fed25bb113e4bfbe0bd33cbe1f54070af97d0f2bee3ef84514a062c96d23')
-# add_model('sd-dreambooth-library/noggles-sd15-800-4e6')
-
-# with open("lizard.jpg", "rb") as image_file:
-#     base_64_encoded = base64.b64encode(image_file.read())
-#     base_64 = base_64_encoded.decode("utf-8") 
-#     hash = hashlib.sha256(base_64_encoded).hexdigest()
-#     id = add_image(
-#         1, 
-#         1, 
-#         'a portrait of a hi definition 4k cartoon lizard wearing noggles (red frame black white lens), very detailed, ultra realistic, extremely high detail, unreal engine, very detailed', 
-#         50, 
-#         1232143448, 
-#         base_64, 
-#         hash
-#     )
-
-# image = fetch_images()[0]
-# print(image['base_64'])
-# image_object = Image.open(BytesIO(base64.b64decode(image['base_64'])))
-# image_object.save("liz.jpg")
-# delete_image_by_id(fetch_images()[0]['id'])
