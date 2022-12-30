@@ -332,15 +332,17 @@ def process_request(request_id):
 
         for i in range(0, len(request_config['prompts'])):
             prompt = request_config['prompts'][i]
+            negative_prompt = request_config['negative_prompts'][i]
             seed = int(request_config['seeds'][i])
             timestamp = int(request_config['timestamps'][i])
 
             if prev_content is None:
-                prev_content = (prompt, seed, timestamp)
+                prev_content = (prompt, seed, timestamp, negative_prompt)
                 continue
             else:
                 video_path = VIDEO_PIPELINE_DICT[request_object['model_id']].walk(
                     prompts=[prev_content[0], prompt],
+                    negative_prompts=[prev_content[3], negative_prompt],
                     seeds=[prev_content[1], seed],
                     num_interpolation_steps=[(timestamp - prev_content[2]) * fps],
                     height=int(ASPECT_RATIOS_DICT[request_object['aspect_ratio']].split(':')[1]),
@@ -352,7 +354,7 @@ def process_request(request_id):
                     name=str(int(time.time() * 100)),
                 )
                 video_paths_list.append(video_path)
-                prev_content = (prompt, seed, timestamp)
+                prev_content = (prompt, seed, timestamp, negative_prompt)
 
         videos_list = []
         for file in video_paths_list:
