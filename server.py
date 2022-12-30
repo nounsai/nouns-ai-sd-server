@@ -332,7 +332,7 @@ def process_request(request_id):
 
         for i in range(0, len(request_config['prompts'])):
             prompt = request_config['prompts'][i]
-            negative_prompt = request_config['negative_prompts'][i]
+            negative_prompt = '' if 'negative_prompts' not in request_config else request_config['negative_prompts'][i]
             seed = int(request_config['seeds'][i])
             timestamp = int(request_config['timestamps'][i])
 
