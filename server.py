@@ -342,7 +342,7 @@ def process_request(request_id):
             else:
                 video_path = VIDEO_PIPELINE_DICT[request_object['model_id']].walk(
                     prompts=[prev_content[0], prompt],
-                    negative_prompts=[prev_content[3], negative_prompt],
+                    negative_prompt=prev_content[3],
                     seeds=[prev_content[1], seed],
                     num_interpolation_steps=[(timestamp - prev_content[2]) * fps],
                     height=int(ASPECT_RATIOS_DICT[request_object['aspect_ratio']].split(':')[1]),
