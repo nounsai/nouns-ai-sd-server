@@ -323,7 +323,6 @@ def process_request(request_id):
         audio = fetch_audio_by_id(request_config['audio_id'])
         dropbox_download_file(audio['url'])
         audio_path = '{}/audio/{}'.format(currentdir, audio['url'].split('/')[-1])
-        print('audio_path: ', audio_path)
 
         try:
             os.mkdir('{}/dreams/{}'.format(currentdir, request_id))
@@ -354,7 +353,6 @@ def process_request(request_id):
                 video_paths_list.append(video_path)
                 prev_content = (prompt, seed, timestamp)
 
-        print('video_paths_list: ', video_paths_list)
         videos_list = []
         for file in video_paths_list:
             filePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), file)
@@ -365,7 +363,6 @@ def process_request(request_id):
         concat_video_path = 'dreams/{}/{}'.format(request_id, concat_video_name)
         concat_video = concatenate_videoclips(videos_list)
         concat_video.to_videofile(concat_video_path, fps=fps, remove_temp=False)
-        print('concat_video_path: ', concat_video_path)
 
         video = VideoFileClip(concat_video_path)
         audio = AudioFileClip(audio_path)
@@ -382,19 +379,25 @@ def process_request(request_id):
             '{}.mov'.format(request_id),
             '/{}/{}'.format('Video', '{}.mov'.format(request_id))
         )
-        print('successfully uploaded to dropbox')
         link = dropbox_get_link('/{}/{}'.format('Video', '{}.mov'.format(request_id)))
-        print('link: ', link)
 
-        message = Mail(
+        sg = SendGridAPIClient(config['sendgrid_api_key'])
+        user = fetch_user_by_id(request_object['user_id'])
+        internal_message = Mail(
             from_email='admin@nounsai.wtf',
             to_emails=[To('theheroshep@gmail.com'), To('eolszewski@gmail.com')],
             subject='Video #{} Has Processed!'.format(request_id),
             html_content='<p>Download here: {}</p>'.format(link)
         )
-        sg = SendGridAPIClient(config['sendgrid_api_key'])
-        response = sg.send(message)
-        print('sendgrid response: ', response.status_code)
+        external_message = Mail(
+            from_email='admin@nounsai.wtf',
+            to_emails=[To(user['email'])],
+            subject='Your Video Has Processed!'.format(request_id),
+            html_content='<p>Download here: {}</p>'.format(link)
+        )
+        response = sg.send(internal_message)
+        response = sg.send(external_message)
+        
         os.remove(audio_path)
         shutil.rmtree('dreams/{}'.format(request_id))
         return {'status':'success'}, 200

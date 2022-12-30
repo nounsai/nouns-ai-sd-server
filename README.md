@@ -10,6 +10,15 @@ deactivate
 ### Setup
 [How we set up the server with Flask, Nginx, Gunicorn, and CertBot](https://www.digitalocean.com/community/tutorials/how-to-serve-flask-applications-with-gunicorn-and-nginx-on-ubuntu-22-04)
 
+### Manually starting the server with gunicorn
+`gunicorn --bind 0.0.0.0:5000 wsgi:app --timeout 30000`
+
+### Starting the server
+`sudo systemctl start nouns-ai-sd-server`
+
+### Stopping the server
+`sudo systemctl stop nouns-ai-sd-server`
+
 ### Restarting the server
 `sudo systemctl restart nouns-ai-sd-server`
 
