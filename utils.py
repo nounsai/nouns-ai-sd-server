@@ -65,9 +65,8 @@ def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps
 
 def img_to_img(i2i_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio, img, strength):
 
-    img = img['image']
     ratio = min(int(ASPECT_RATIOS_DICT[aspect_ratio].split(':')[1]) / img.height, int(ASPECT_RATIOS_DICT[aspect_ratio].split(':')[0]) / img.width)
-    img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+    img = img.resize((int(img.width), int(img.height)), Image.LANCZOS)
     images = i2i_pipeline(
         prompt,
         generator=generator,
@@ -75,7 +74,7 @@ def img_to_img(i2i_pipeline, prompt, generator, n_images, negative_prompt, steps
         negative_prompt = negative_prompt,
         num_inference_steps = int(steps),
         guidance_scale = scale,
-        image = img,
+        init_image = img,
         strength = strength
     ).images
     return images

@@ -181,6 +181,7 @@ def get_image():
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
         return '\'challenge-token\' header missing / invalid', 401
     
+    images = []
     if content['inference_mode'] == 'Text to Image':
         images = inference(IMG_PIPELINE_DICT[content['model_id']], 'Text to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'])
     elif content['inference_mode'] == 'Image to Image':
@@ -188,7 +189,7 @@ def get_image():
         byte_data = base64.b64decode(base64_data)
         image_data = BytesIO(byte_data)
         image = Image.open(image_data)
-        images = inference(IMG_PIPELINE_DICT[content['model_id']], 'Image to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'], img=image, strength=float(content['strength']))
+        images = inference(I2I_PIPELINE_DICT[content['model_id']], 'Image to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'], img=image, strength=float(content['strength']))
     return serve_pil_image(images[0])
 
 
