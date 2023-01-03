@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import json
 import time
@@ -6,7 +7,9 @@ import torch
 import shutil
 import dropbox
 import pathlib
+import cStringIO
 
+from PIL import Image
 from flask_cors import CORS
 from flask import Flask, request
 from transformers import pipeline
@@ -14,9 +17,9 @@ from sendgrid import SendGridAPIClient
 from dropbox.exceptions import AuthError
 from sendgrid.helpers.mail import Mail, To
 from stable_diffusion_videos import StableDiffusionWalkPipeline
-from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
-from utils import ASPECT_RATIOS_DICT, MODELS_DICT, convert_mp4_to_mov, get_device, infer, serve_pil_image
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline
+from utils import ASPECT_RATIOS_DICT, MODELS_DICT, convert_mp4_to_mov, get_device, inference, serve_pil_image
 from db import  fetch_users, fetch_user_by_email, fetch_user_by_id, add_user, \
                 fetch_images, fetch_images_for_user, fetch_image_by_id, delete_image_by_id, fetch_image_by_hash, add_image, \
                 fetch_requests, fetch_requests_for_user, fetch_request_by_id, delete_request_by_id, fetch_request_by_hash, add_request,\
@@ -50,13 +53,17 @@ CORS(app)
 ########## SD ###########
 #########################
 
-IMAGE_PIPELINE_DICT = {}
+IMG_PIPELINE_DICT = {}
+I2I_PIPELINE_DICT = {}
 VIDEO_PIPELINE_DICT = {}
 if get_device() == 'cuda':
     for model in MODELS_DICT.keys():
-        IMAGE_PIPELINE_DICT[model] = DiffusionPipeline.from_pretrained(model, safety_checker=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
-        IMAGE_PIPELINE_DICT[model].scheduler = DPMSolverMultistepScheduler.from_config(IMAGE_PIPELINE_DICT[model].scheduler.config)
-        IMAGE_PIPELINE_DICT[model] = IMAGE_PIPELINE_DICT[model].to('cuda')
+        IMG_PIPELINE_DICT[model] = DiffusionPipeline.from_pretrained(model, safety_checker=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
+        IMG_PIPELINE_DICT[model].scheduler = DPMSolverMultistepScheduler.from_config(IMG_PIPELINE_DICT[model].scheduler.config)
+        IMG_PIPELINE_DICT[model] = IMG_PIPELINE_DICT[model].to('cuda')
+        I2I_PIPELINE_DICT[model] = StableDiffusionImg2ImgPipeline.from_pretrained(model, safety_checker=None, feature_extractor=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
+        I2I_PIPELINE_DICT[model].scheduler = DPMSolverMultistepScheduler.from_config(I2I_PIPELINE_DICT[model].scheduler.config)
+        I2I_PIPELINE_DICT[model] = I2I_PIPELINE_DICT[model].to('cuda')
         VIDEO_PIPELINE_DICT[model] = StableDiffusionWalkPipeline.from_pretrained(model, feature_extractor=None, safety_checker=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
         VIDEO_PIPELINE_DICT[model].scheduler = DPMSolverMultistepScheduler.from_config(VIDEO_PIPELINE_DICT[model].scheduler.config)
         VIDEO_PIPELINE_DICT[model] = VIDEO_PIPELINE_DICT[model].to('cuda')
@@ -172,8 +179,13 @@ def get_image():
     content = json.loads(request.data)
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
         return '\'challenge-token\' header missing / invalid', 401
-
-    images = infer(IMAGE_PIPELINE_DICT[content['model_id']], content['aspect_ratio'], prompt=content['prompt'], negative_prompt=content['negative_prompt'], samples=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']))
+    
+    if content['inference_mode'] == 'Text to Image':
+        images = inference(IMG_PIPELINE_DICT[content['model_id']], 'Text to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'])
+    elif content['inference_mode'] == 'Image to Image':
+        image_data = re.sub('^data:image/.+;base64,', '', content['base_64']).decode('base64')
+        image = Image.open(cStringIO.StringIO(image_data))
+        images = inference(IMG_PIPELINE_DICT[content['model_id']], 'Image to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'], img=image, strength=float(content['strength']))
     return serve_pil_image(images[0])
 
 
@@ -198,6 +210,7 @@ def add_image_for_user(user_id):
     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
         return '\'challenge-token\' header missing / invalid', 401
     
+    # TODO: Make sure to related fields for img2img
     try:
         id = add_image(
             user_id, 
@@ -208,7 +221,8 @@ def add_image_for_user(user_id):
             content['seed'], 
             content['base_64'], 
             content['image_hash'],
-            content['aspect_ratio']
+            content['aspect_ratio'],
+            content['inference_mode']
         )
         return {'image_id':id}, 200
     except Exception as e:

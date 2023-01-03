@@ -63,6 +63,7 @@ CREATE TABLE images (
     base_64 TEXT NOT NULL,
     image_hash VARCHAR (256) NOT NULL,
     aspect_ratio VARCHAR (12) NOT NULL,
+    inference_mode VARCHAR (128) NOT NULL DEFAULT 'Text to Image',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, model_id, image_hash)
 );
