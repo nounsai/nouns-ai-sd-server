@@ -54,7 +54,7 @@ def preprocess(image):
 
     now = int(time.time())
     image.save('{}_tmp.jpg'.format(str(now)), optimize=True, quality=90)
-    image = Image.open('{}_tmp.jpg'.format(str(now))).convert("RGB")
+    image = Image.open('{}_tmp.jpg'.format(str(now)))
     os.remove('{}_tmp.jpg'.format(str(now)))
     w, h = image.size
     w, h = map(lambda x: x - x % 32, (w, h))
