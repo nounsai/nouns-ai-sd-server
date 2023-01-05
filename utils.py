@@ -2,8 +2,10 @@
 # -*- coding: utf-8; py-indent-offset:4 -*-
 
 import os
+import time
 import torch
 import subprocess
+import numpy as np
 
 from PIL import Image
 from io import BytesIO 
@@ -48,6 +50,21 @@ def convert_mp4_to_mov(input_file, output_file):
     subprocess.run(command)
 
 
+def preprocess(image):
+
+    now = int(time.time())
+    image.save('{}_tmp.jpg'.format(now), optimize=True, quality=90)
+    image = Image.open('{}_tmp.jpg'.format(now)).convert("RGB")
+    os.remove('{}_tmp.jpg'.format(now))
+    w, h = image.size
+    w, h = map(lambda x: x - x % 32, (w, h))
+    image = image.resize((w, h), resample=Image.LANCZOS)
+    image = np.array(image).astype(np.float32) / 255.0
+    image = image[None].transpose(0, 3, 1, 2)
+    image = torch.from_numpy(image)
+    return 2.0 * image - 1.0
+
+
 def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio):
 
     images = img_pipeline(
@@ -65,8 +82,7 @@ def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps
 
 def img_to_img(i2i_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio, img, strength):
 
-    ratio = min(int(ASPECT_RATIOS_DICT[aspect_ratio].split(':')[1]) / img.height, int(ASPECT_RATIOS_DICT[aspect_ratio].split(':')[0]) / img.width)
-    img = img.resize((int(img.width), int(img.height)), Image.LANCZOS)
+    img = preprocess(img)
     images = i2i_pipeline(
         prompt,
         generator=generator,
