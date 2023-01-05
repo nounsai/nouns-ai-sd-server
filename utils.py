@@ -53,9 +53,9 @@ def convert_mp4_to_mov(input_file, output_file):
 def preprocess(image):
 
     now = int(time.time())
-    image.save('{}_tmp.jpg'.format(now), optimize=True, quality=90)
-    image = Image.open('{}_tmp.jpg'.format(now)).convert("RGB")
-    os.remove('{}_tmp.jpg'.format(now))
+    image.save('{}_tmp.jpg'.format(str(now)), optimize=True, quality=90)
+    image = Image.open('{}_tmp.jpg'.format(str(now))).convert("RGB")
+    os.remove('{}_tmp.jpg'.format(str(now)))
     w, h = image.size
     w, h = map(lambda x: x - x % 32, (w, h))
     image = image.resize((w, h), resample=Image.LANCZOS)

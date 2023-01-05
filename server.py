@@ -185,10 +185,10 @@ def get_image():
     if content['inference_mode'] == 'Text to Image':
         images = inference(IMG_PIPELINE_DICT[content['model_id']], 'Text to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'])
     elif content['inference_mode'] == 'Image to Image':
-        base64_data = re.sub('^data:image/.+;base64,', '', content['base_64'])
-        byte_data = base64.b64decode(base64_data)
-        image_data = BytesIO(byte_data)
-        image = Image.open(image_data)
+        starter = content['base_64'].find(',')
+        image_data = content['base_64'][starter+1:]
+        image_data = bytes(image_data, encoding="ascii")
+        image = Image.open(BytesIO(base64.b64decode(image_data)))
         images = inference(I2I_PIPELINE_DICT[content['model_id']], 'Image to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'], img=image, strength=float(content['strength']))
     return serve_pil_image(images[0])
 
