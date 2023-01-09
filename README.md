@@ -93,7 +93,7 @@ CREATE TABLE requests (
     config TEXT NOT NULL,
     config_hash VARCHAR (256) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    queued BOOLEAN NOT NULL DEFAULT true,
+    state VARCHAR (16) NOT NULL DEFAULT 'QUEUED',
     UNIQUE (user_id, model_id, config_hash)
 );
 ```

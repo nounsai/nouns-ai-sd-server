@@ -23,7 +23,7 @@ from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiff
 from utils import ASPECT_RATIOS_DICT, MODELS_DICT, convert_mp4_to_mov, get_device, inference, serve_pil_image
 from db import  fetch_users, fetch_user_by_email, fetch_user_by_id, add_user, \
                 fetch_images, fetch_images_for_user, fetch_image_by_id, delete_image_by_id, fetch_image_by_hash, add_image, \
-                fetch_requests, fetch_requests_for_user, fetch_request_by_id, delete_request_by_id, fetch_request_by_hash, add_request,\
+                fetch_requests, fetch_requests_for_user, fetch_request_by_id, delete_request_by_id, fetch_request_by_hash, add_request, update_request_state, \
                 fetch_audio, fetch_audio_for_user, fetch_audio_by_id, delete_audio_by_id, add_audio, \
                 fetch_code_by_hash, update_code_by_hash, add_code
 
@@ -337,6 +337,7 @@ def process_request(request_id):
     video_paths_list = []
 
     try:
+        update_request_state('PROCESSING', request_id)
         request_object = fetch_request_by_id(request_id)
         request_config = json.loads(request_object['config'])
         audio = fetch_audio_by_id(request_config['audio_id'])
@@ -418,12 +419,15 @@ def process_request(request_id):
         )
         response = sg.send(internal_message)
         response = sg.send(external_message)
+
+        update_request_state('DONE', request_id)
         
         os.remove(audio_path)
         shutil.rmtree('dreams/{}'.format(request_id))
         return {'status':'success'}, 200
         
     except Exception as e:
+        update_request_state('ERROR', request_id)
         print('Internal server error: {}'.format(str(e)))
         return 'Internal server error: {}'.format(str(e)), 500
 

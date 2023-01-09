@@ -216,10 +216,10 @@ def add_image(user_id, model_id, prompt, negative_prompt, steps, seed, base_64, 
 def fetch_requests():
 
     conn = open_connection()
-    sql = "SELECT * FROM requests order by id asc;"
+    sql = "SELECT * FROM requests order by id desc;"
     requests_df = pd.read_sql_query(sql, conn)
     close_connection(conn)
-    return json.loads(requests_df.to_json(orient="records"))
+    return requests_df
 
 
 def fetch_requests_for_user(user_id):
@@ -271,6 +271,17 @@ def add_request(user_id, model_id, aspect_ratio, config, config_hash):
     conn.commit()
     close_connection(conn)
     return id
+
+
+def update_request_state(state, id):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE requests SET state='{}' where id={};".format(state, id))
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
 
 ########################################################
 ######################## AUDIO #########################
