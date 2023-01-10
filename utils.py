@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 from io import BytesIO 
 from flask import send_file
+from googletrans import Translator
 
 #######################################################
 ###################### CONSTANTS ######################
@@ -67,11 +68,13 @@ def preprocess(image):
 
 def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio):
 
+    translator = Translator()
+
     images = img_pipeline(
-        prompt,
+        translator.translate(prompt).text,
         generator=generator,
         num_images_per_prompt=n_images,
-        negative_prompt=negative_prompt,
+        negative_prompt=translator.translate(negative_prompt).text,
         num_inference_steps=steps,
         guidance_scale=scale,
         height=int(ASPECT_RATIOS_DICT[aspect_ratio].split(':')[1]),
