@@ -209,6 +209,17 @@ def add_image(user_id, model_id, prompt, negative_prompt, steps, seed, base_64, 
     close_connection(conn)
     return id
 
+
+def update_image_tag(id, tag):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE images SET tag='{}' where id={};".format(tag, id))
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
 ########################################################
 ####################### REQUESTS #######################
 ########################################################

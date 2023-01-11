@@ -22,7 +22,7 @@ from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline
 from utils import ASPECT_RATIOS_DICT, MODELS_DICT, convert_mp4_to_mov, get_device, inference, serve_pil_image
 from db import  fetch_users, fetch_user_by_email, fetch_user_by_id, add_user, \
-                fetch_images, fetch_images_for_user, fetch_image_by_id, delete_image_by_id, fetch_image_by_hash, add_image, \
+                fetch_images, fetch_images_for_user, fetch_image_by_id, delete_image_by_id, fetch_image_by_hash, add_image, update_image_tag, \
                 fetch_requests, fetch_requests_for_user, fetch_request_by_id, delete_request_by_id, fetch_request_by_hash, add_request, update_request_state, \
                 fetch_audio, fetch_audio_for_user, fetch_audio_by_id, delete_audio_by_id, add_audio, \
                 fetch_code_by_hash, update_code_by_hash, add_code
@@ -236,6 +236,24 @@ def add_image_for_user(user_id):
         except Exception as e:
             print('Internal server error: {}'.format(str(e)))
             return 'Internal server error: {}'.format(str(e)), 500
+
+
+@app.route('/users/<user_id>/images/<image_id>', methods=['POST'])
+def update_image_for_user(user_id, image_id):
+
+    content = json.loads(request.data)
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
+        return '\'challenge-token\' header missing / invalid', 401
+    
+    try:
+        id = update_image_tag(
+            image_id, 
+            content['tag']
+        )
+        return {'image_id':id}, 200
+    except Exception as e:
+        print('Internal server error: {}'.format(str(e)))
+        return 'Internal server error: {}'.format(str(e)), 500
 
 
 @app.route('/users/<user_id>/images/<image_id>', methods=['DELETE'])
