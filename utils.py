@@ -54,7 +54,7 @@ def convert_mp4_to_mov(input_file, output_file):
 def preprocess(image):
 
     now = int(time.time())
-    image.save('{}_tmp.jpg'.format(str(now)), optimize=True, quality=90)
+    image.save('{}_tmp.jpg'.format(str(now)), optimize=True, quality=100)
     image = Image.open('{}_tmp.jpg'.format(str(now)))
     os.remove('{}_tmp.jpg'.format(str(now)))
     w, h = image.size
@@ -122,6 +122,6 @@ def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=
 def serve_pil_image(pil_img):
 
     img_io = BytesIO()
-    pil_img.save(img_io, 'JPEG', quality=70)
+    pil_img.save(img_io, 'JPEG', quality=100)
     img_io.seek(0)
     return send_file(img_io, mimetype='image/jpeg')
