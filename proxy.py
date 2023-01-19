@@ -57,4 +57,10 @@ def redirect_to_API_HOST(path):
     response = Response(res.content, res.status_code, headers)
     return response
 
-app.run(host='0.0.0.0', debug=True, port='5000')
+
+if __name__ == '__main__':
+    if config['environment'] == 'prod':
+        app.run(host='0.0.0.0', port='5000', ssl_context='adhoc')
+    else:
+        app.run(host='0.0.0.0', debug=True, port='5000')
+
