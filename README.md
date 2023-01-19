@@ -109,3 +109,13 @@ CREATE TABLE codes (
     UNIQUE (code)
 );
 ```
+
+## API Hosts
+
+```
+CREATE TABLE api_hosts (
+	id SERIAL NOT NULL PRIMARY KEY,
+    address VARCHAR (256) NOT NULL,
+    UNIQUE (address)
+);
+```

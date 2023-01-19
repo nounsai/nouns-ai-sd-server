@@ -379,3 +379,15 @@ def add_code(hash):
     conn.commit()
     close_connection(conn)
     return id
+
+########################################################
+###################### API HOSTS #######################
+########################################################
+
+def fetch_api_hosts():
+
+    conn = open_connection()
+    sql = "SELECT * FROM api_hosts;"
+    api_hosts_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return api_hosts_df['address'].array
