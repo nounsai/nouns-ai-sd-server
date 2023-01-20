@@ -391,3 +391,37 @@ def fetch_api_hosts():
     api_hosts_df = pd.read_sql_query(sql, conn)
     close_connection(conn)
     return api_hosts_df['address'].array
+
+
+########################################################
+######################## LINKS #########################
+########################################################
+
+def fetch_links():
+
+    conn = open_connection()
+    sql = "SELECT * FROM links order by id asc;"
+    links_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(links_df.to_json(orient="records"))
+
+
+def fetch_link_by_hash(hash):
+
+    conn = open_connection()
+    sql = "SELECT * FROM links WHERE hash=\'{}\';".format(hash)
+    links_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(links_df.to_json(orient="records"))[0]
+
+
+def add_link(hash, user_id, model_id, prompt, negative_prompt, seed, image_id, aspect_ratio, inference_mode, strength):
+    
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("INSERT INTO links (hash, user_id, model_id, prompt, negative_prompt, seed, image_id, aspect_ratio, inference_mode, strength) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;", (hash, user_id, model_id, prompt, negative_prompt, seed, image_id, aspect_ratio, inference_mode, strength))
+    id = cur.fetchone()[0]
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return id

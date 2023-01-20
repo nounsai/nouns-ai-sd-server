@@ -119,3 +119,19 @@ CREATE TABLE api_hosts (
     UNIQUE (address)
 );
 ```
+
+## Links
+CREATE TABLE links (
+	id SERIAL NOT NULL PRIMARY KEY,
+    hash VARCHAR (256) NOT NULL,
+    user_id INTEGER NOT NULL,
+    model_id VARCHAR (128) NOT NULL,
+    prompt TEXT,
+    negative_prompt TEXT,
+    seed BIGINT NOT NULL,
+    image_id INTEGER,
+    strength INTEGER NOT NULL DEFAULT 0,
+    aspect_ratio VARCHAR (12) NOT NULL,
+    inference_mode VARCHAR (128) NOT NULL DEFAULT 'Text to Image',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);

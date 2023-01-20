@@ -25,7 +25,8 @@ from db import  fetch_users, fetch_user_by_email, fetch_user_by_id, add_user, \
                 fetch_images, fetch_images_for_user, fetch_image_by_id, delete_image_by_id, fetch_image_by_hash, add_image, update_image_tag, \
                 fetch_requests, fetch_requests_for_user, fetch_request_by_id, delete_request_by_id, fetch_request_by_hash, add_request, update_request_state, \
                 fetch_audio, fetch_audio_for_user, fetch_audio_by_id, delete_audio_by_id, add_audio, \
-                fetch_code_by_hash, update_code_by_hash, add_code
+                fetch_code_by_hash, update_code_by_hash, add_code, \
+                fetch_links, fetch_link_by_hash, add_link
 
 #######################################################
 ######################## SETUP ########################
@@ -448,6 +449,51 @@ def process_request(request_id):
         update_request_state('ERROR', request_id)
         print('Internal server error: {}'.format(str(e)))
         return 'Internal server error: {}'.format(str(e)), 500
+
+#########################
+######### LINKS #########
+#########################
+
+@app.route('/users/<user_id>/links', methods=['POST'])
+def add_link_for_user(user_id):
+
+    content = json.loads(request.data)
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
+        return '\'challenge-token\' header missing / invalid', 401
+    
+    # TODO: Make sure to related fields for img2img
+    try:
+        id = add_link(
+            content['hash'], 
+            user_id, 
+            content['model_id'], 
+            content['prompt'], 
+            content['negative_prompt'], 
+            content['seed'], 
+            content['image_id'], 
+            content['aspect_ratio'],
+            content['inference_mode'],
+            content['strength']
+        )
+        return {'link_id':id}, 200
+    except Exception as e:
+        print('Internal server error: {}'.format(str(e)))
+        return 'Internal server error: {}'.format(str(e)), 500
+
+
+@app.route('/links/<hash>', methods=['GET'])
+def fetch_link_for_hash(hash):
+
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
+        return '\'challenge-token\' header missing / invalid', 401
+    
+    try:
+        link = fetch_link_by_hash(hash)
+        return link, 200
+    except Exception as e:
+        print('Internal server error: {}'.format(str(e)))
+        return 'Internal server error: {}'.format(str(e)), 500
+
 
 #########################
 ######## HELPERS ########
