@@ -176,7 +176,7 @@ def img_to_img(i2i_pipeline, prompt, generator, n_images, negative_prompt, steps
         negative_prompt = negative_prompt,
         num_inference_steps = int(steps),
         guidance_scale = scale,
-        init_image = img,
+        image = img,
         strength = strength
     ).images
     return images
