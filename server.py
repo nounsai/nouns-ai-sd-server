@@ -14,6 +14,7 @@ from flask import Flask, request
 from transformers import pipeline
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
+from clip_interrogator import Config, Interrogator
 from stable_diffusion_videos import StableDiffusionWalkPipeline
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler
@@ -468,6 +469,21 @@ def extend_prompt():
         return '\'challenge-token\' header missing / invalid', 401
 
     return text_pipeline(content['prompt'] + ',', num_return_sequences=1)[0]['generated_text']
+
+@app.route('/interrogate', methods=['POST'])
+def interrogate():
+
+    content = json.loads(request.data)
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
+        return '\'challenge-token\' header missing / invalid', 401
+
+    starter = content['base_64'].find(',')
+    image_data = content['base_64'][starter+1:]
+    image_data = bytes(image_data, encoding="ascii")
+    image = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
+    ci = Interrogator(Config(clip_model_name="ViT-L-14/openai"))
+    return ci.interrogate(image)
+
 
 #######################################################
 ######################## MAIN #########################

@@ -1,4 +1,5 @@
-diffusers==v0.12.1
+clip-interrogator==0.3.5
+diffusers==0.12.1
 flask
 flask_cors
 ftfy
