@@ -6,8 +6,6 @@ import time
 import torch
 import shutil
 import base64
-import dropbox
-import pathlib
 
 from PIL import Image
 from io import BytesIO
@@ -15,12 +13,11 @@ from flask_cors import CORS
 from flask import Flask, request
 from transformers import pipeline
 from sendgrid import SendGridAPIClient
-from dropbox.exceptions import AuthError
 from sendgrid.helpers.mail import Mail, To
 from stable_diffusion_videos import StableDiffusionWalkPipeline
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
-from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline
-from utils import ASPECT_RATIOS_DICT, MODELS_DICT, convert_mp4_to_mov, get_device, inference, serve_pil_image
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler
+from utils import ASPECT_RATIOS_DICT, BASE_MODELS, INSTRUCTABLE_MODELS, convert_mp4_to_mov, get_device, inference, serve_pil_image
 from db import  fetch_users, fetch_user_by_email, fetch_user_by_id, add_user, \
                 fetch_images, fetch_images_for_user, fetch_image_by_id, delete_image_by_id, fetch_image_by_hash, add_image, update_image_tag, \
                 fetch_requests, fetch_requests_for_user, fetch_request_by_id, delete_request_by_id, fetch_request_by_hash, add_request, update_request_state, \
@@ -42,7 +39,6 @@ if not os.path.isfile('config.json'):
 else:
     with open('config.json') as file:
         config = json.load(file)
-        AUTH_TOKEN = config['huggingface_token']
 
 #########################
 ######### FLASK #########
@@ -57,76 +53,24 @@ CORS(app)
 
 IMG_PIPELINE_DICT = {}
 I2I_PIPELINE_DICT = {}
+P2P_PIPELINE_DICT = {}
 VIDEO_PIPELINE_DICT = {}
 if get_device() == 'cuda':
-    for model in MODELS_DICT.keys():
-        IMG_PIPELINE_DICT[model] = DiffusionPipeline.from_pretrained(model, safety_checker=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
-        IMG_PIPELINE_DICT[model].scheduler = DPMSolverMultistepScheduler.from_config(IMG_PIPELINE_DICT[model].scheduler.config)
-        IMG_PIPELINE_DICT[model] = IMG_PIPELINE_DICT[model].to('cuda')
-        I2I_PIPELINE_DICT[model] = StableDiffusionImg2ImgPipeline.from_pretrained(model, safety_checker=None, feature_extractor=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
-        I2I_PIPELINE_DICT[model].scheduler = DPMSolverMultistepScheduler.from_config(I2I_PIPELINE_DICT[model].scheduler.config)
-        I2I_PIPELINE_DICT[model] = I2I_PIPELINE_DICT[model].to('cuda')
-        VIDEO_PIPELINE_DICT[model] = StableDiffusionWalkPipeline.from_pretrained(model, feature_extractor=None, safety_checker=None, use_auth_token=AUTH_TOKEN, torch_dtype=torch.float16)
-        VIDEO_PIPELINE_DICT[model].scheduler = DPMSolverMultistepScheduler.from_config(VIDEO_PIPELINE_DICT[model].scheduler.config)
-        VIDEO_PIPELINE_DICT[model] = VIDEO_PIPELINE_DICT[model].to('cuda')
+    for base_model in BASE_MODELS:
+        IMG_PIPELINE_DICT[base_model] = DiffusionPipeline.from_pretrained(base_model, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+        IMG_PIPELINE_DICT[base_model].scheduler = DPMSolverMultistepScheduler.from_config(IMG_PIPELINE_DICT[base_model].scheduler.config)
+        IMG_PIPELINE_DICT[base_model] = IMG_PIPELINE_DICT[base_model].to('cuda')
+        I2I_PIPELINE_DICT[base_model] = StableDiffusionImg2ImgPipeline.from_pretrained(base_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+        I2I_PIPELINE_DICT[base_model].scheduler = DPMSolverMultistepScheduler.from_config(I2I_PIPELINE_DICT[base_model].scheduler.config)
+        I2I_PIPELINE_DICT[base_model] = I2I_PIPELINE_DICT[base_model].to('cuda')
+    for instructable_model in INSTRUCTABLE_MODELS:
+        P2P_PIPELINE_DICT[instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+        P2P_PIPELINE_DICT[instructable_model] = P2P_PIPELINE_DICT[instructable_model].to('cuda')
+        P2P_PIPELINE_DICT[instructable_model].scheduler = EulerAncestralDiscreteScheduler.from_config(P2P_PIPELINE_DICT[instructable_model].scheduler.config)
 else:
     sys.exit('Need CUDA to run this server!')
     
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
-
-#######################################################
-####################### DROPBOX #######################
-#######################################################
-
-def dropbox_connect():
-
-    try:
-        dbx = dropbox.Dropbox(
-            app_key = config['dropbox_api_key'],
-            app_secret = config['dropbox_api_secret'],
-            oauth2_refresh_token = config['dropbox_refresh_token']
-        )
-    except AuthError as e:
-        print('Error connecting to Dropbox with access token: ' + str(e))
-    return dbx
-
-
-def dropbox_upload_file(local_path, local_file, dropbox_file_path):
-
-    try:
-        dbx = dropbox_connect()
-        local_file_path = pathlib.Path(local_path) / local_file
-        with local_file_path.open('rb') as f:
-            meta = dbx.files_upload(f.read(), dropbox_file_path, mode=dropbox.files.WriteMode('overwrite'))
-            return meta
-    except Exception as e:
-        print('Error uploading file to Dropbox: ' + str(e))
-
-
-def dropbox_download_file(dropbox_file_path):
-
-    try:
-        dbx = dropbox_connect()
-        meta, file = dbx.files_download(dropbox_file_path)
-        with open(os.path.join(str(os.path.dirname(os.path.realpath(__file__))), '{}/{}'.format('audio', dropbox_file_path.split('/')[-1])), 'wb') as out:
-            out.write(file.content)
-            out.close()
-    except Exception as e:
-        print('Error downloading file from Dropbox: ' + str(e))
-
-
-def dropbox_get_link(dropbox_file_path):
-
-    try:
-        dbx = dropbox_connect()
-        shared_link_metadata = dbx.sharing_create_shared_link_with_settings(dropbox_file_path)
-        shared_link = shared_link_metadata.url
-        return shared_link.replace('?dl=0', '?dl=1')
-    except dropbox.exceptions.ApiError as exception:
-        if exception.error.is_shared_link_already_exists():
-            shared_link_metadata = dbx.sharing_get_shared_links(dropbox_file_path)
-            shared_link = shared_link_metadata.links[0].url
-            return shared_link.replace('?dl=0', '?dl=1')
 
 #######################################################
 ######################### API #########################
@@ -171,6 +115,20 @@ def get_users():
         print('Internal server error: {}'.format(str(e)))
         return 'Internal server error: {}'.format(str(e)), 500
 
+
+@app.route('/users/<user_id>', methods=['GET'])
+def get_user(user_id):
+
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
+        return '\'challenge-token\' header missing / invalid', 401
+    
+    try:
+        user = fetch_user_by_id(user_id)
+        return user, 200
+    except Exception as e:
+        print('Internal server error: {}'.format(str(e)))
+        return 'Internal server error: {}'.format(str(e)), 500
+
 #########################
 ######## IMAGES #########
 #########################
@@ -185,12 +143,15 @@ def get_image():
     images = []
     if content['inference_mode'] == 'Text to Image':
         images = inference(IMG_PIPELINE_DICT[content['model_id']], 'Text to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'])
-    elif content['inference_mode'] == 'Image to Image':
+    else:
         starter = content['base_64'].find(',')
         image_data = content['base_64'][starter+1:]
         image_data = bytes(image_data, encoding="ascii")
         image = Image.open(BytesIO(base64.b64decode(image_data)))
-        images = inference(I2I_PIPELINE_DICT[content['model_id']], 'Image to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'], img=image, strength=float(content['strength']))
+        if content['inference_mode'] == 'Image to Image':
+            images = inference(I2I_PIPELINE_DICT[content['model_id']], 'Image to Image', content['prompt'], n_images=int(content['samples']), negative_prompt=content['negative_prompt'], steps=int(content['steps']), seed=int(content['seed']), aspect_ratio=content['aspect_ratio'], img=image, strength=float(content['strength']))
+        elif content['inference_mode'] == 'Pix to Pix':
+            images = inference(P2P_PIPELINE_DICT[content['model_id']], 'Pix to Pix', content['prompt'], n_images=int(content['samples']), steps=int(content['steps']), seed=int(content['seed']), img=image)
     return serve_pil_image(images[0])
 
 

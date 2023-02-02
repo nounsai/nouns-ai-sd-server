@@ -2,6 +2,7 @@ diffusers
 flask
 flask_cors
 ftfy
+googletrans==4.0.0rc1
 gradio
 gunicorn
 moviepy==1.0.3
