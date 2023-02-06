@@ -154,10 +154,10 @@ def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps
     translator = Translator()
 
     images = img_pipeline(
-        translator.translate(prompt).text,
+        "" if len(prompt) == 0 else translator.translate(prompt).text,
         generator=generator,
         num_images_per_prompt=n_images,
-        negative_prompt=translator.translate(negative_prompt).text,
+        negative_prompt= "" if len(negative_prompt) == 0 else translator.translate(negative_prompt).text,
         num_inference_steps=steps,
         guidance_scale=scale,
         height=int(ASPECT_RATIOS_DICT[aspect_ratio].split(':')[1]),
