@@ -26,6 +26,13 @@ from db import  fetch_users, fetch_user_by_email, fetch_user_by_id, add_user, \
                 fetch_code_by_hash, update_code_by_hash, add_code, \
                 fetch_links, fetch_link_by_hash, add_link
 
+from transformers.generation_utils import GenerationMixin
+
+def _no_validate_model_kwargs(self, model_kwargs):
+    pass
+
+GenerationMixin._validate_model_kwargs = _no_validate_model_kwargs
+
 #######################################################
 ######################## SETUP ########################
 #######################################################
@@ -56,6 +63,7 @@ IMG_PIPELINE_DICT = {}
 I2I_PIPELINE_DICT = {}
 P2P_PIPELINE_DICT = {}
 VIDEO_PIPELINE_DICT = {}
+
 if get_device() == 'cuda':
     for base_model in BASE_MODELS:
         IMG_PIPELINE_DICT[base_model] = DiffusionPipeline.from_pretrained(base_model, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
@@ -72,6 +80,12 @@ else:
     sys.exit('Need CUDA to run this server!')
     
 text_pipeline = pipeline('text-generation', model='daspartho/prompt-extend', device=0)
+
+ci_config = Config()
+ci_config.blip_num_beams = 64
+ci_config.blip_offload = False
+ci_config.clip_model_name = "ViT-H-14/laion2b_s32b_b79k"
+clip_interrogator = Interrogator(ci_config)
 
 #######################################################
 ######################### API #########################
@@ -481,8 +495,7 @@ def interrogate():
     image_data = content['base_64'][starter+1:]
     image_data = bytes(image_data, encoding="ascii")
     image = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
-    ci = Interrogator(Config(clip_model_name="ViT-L-14/openai"))
-    return ci.interrogate(image)
+    return clip_interrogator.interrogate(image)
 
 
 #######################################################
