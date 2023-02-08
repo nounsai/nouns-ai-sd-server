@@ -17,8 +17,8 @@ from sendgrid.helpers.mail import Mail, To
 from clip_interrogator import Config, Interrogator
 from stable_diffusion_videos import StableDiffusionWalkPipeline
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
-from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler
-from utils import ASPECT_RATIOS_DICT, BASE_MODELS, INSTRUCTABLE_MODELS, convert_mp4_to_mov, get_device, inference, serve_pil_image
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline
+from utils import ASPECT_RATIOS_DICT, BASE_MODELS, INSTRUCTABLE_MODELS, UPSCALING_MODELS, convert_mp4_to_mov, get_device, inference, serve_pil_image, preprocess
 from db import  fetch_users, fetch_user_by_email, fetch_user_by_id, add_user, \
                 fetch_images, fetch_images_for_user, fetch_image_by_id, delete_image_by_id, fetch_image_by_hash, add_image, update_image_tag, \
                 fetch_requests, fetch_requests_for_user, fetch_request_by_id, delete_request_by_id, fetch_request_by_hash, add_request, update_request_state, \
@@ -86,6 +86,9 @@ ci_config.blip_num_beams = 64
 ci_config.blip_offload = False
 ci_config.clip_model_name = "ViT-H-14/laion2b_s32b_b79k"
 clip_interrogator = Interrogator(ci_config)
+
+upscale_pipe = StableDiffusionUpscalePipeline.from_pretrained("stabilityai/stable-diffusion-x4-upscaler", safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+upscale_pipe = upscale_pipe.to('cuda')
 
 #######################################################
 ######################### API #########################
@@ -497,6 +500,24 @@ def interrogate():
     image = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
     return clip_interrogator.interrogate(image)
 
+@app.route('/upscale', methods=['POST'])
+def upscale():
+
+    content = json.loads(request.data)
+    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
+        return '\'challenge-token\' header missing / invalid', 401
+
+    starter = content['base_64'].find(',')
+    image_data = content['base_64'][starter+1:]
+    image_data = bytes(image_data, encoding="ascii")
+    image = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
+    img = preprocess(image)
+    img = preprocess(img)
+    images = upscale_pipe(
+        prompt='', 
+        image=img
+    ).images
+    return serve_pil_image(images[0])
 
 #######################################################
 ######################## MAIN #########################
