@@ -18,7 +18,7 @@ from clip_interrogator import Config, Interrogator
 from stable_diffusion_videos import StableDiffusionWalkPipeline
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline
-from utils import ASPECT_RATIOS_DICT, BASE_MODELS, INSTRUCTABLE_MODELS, UPSCALING_MODELS, convert_mp4_to_mov, get_device, inference, serve_pil_image, preprocess
+from utils import ASPECT_RATIOS_DICT, BASE_MODELS, INSTRUCTABLE_MODELS, convert_mp4_to_mov, get_device, inference, serve_pil_image, preprocess
 from db import  fetch_users, fetch_user_by_email, fetch_user_by_id, add_user, \
                 fetch_images, fetch_images_for_user, fetch_image_by_id, delete_image_by_id, fetch_image_by_hash, add_image, update_image_tag, \
                 fetch_requests, fetch_requests_for_user, fetch_request_by_id, delete_request_by_id, fetch_request_by_hash, add_request, update_request_state, \
