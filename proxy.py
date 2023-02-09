@@ -35,10 +35,10 @@ def redirect_to_API_HOST(path):
 
     if path == 'refresh_hosts':
         API_HOSTS = fetch_api_hosts()
-        return Response('Success', 200, {})
+        return Response('Success', 200, {API_HOSTS})
     
-    api_host = API_HOSTS[COUNTER]
-    COUNTER = (COUNTER + 1) % len(API_HOSTS)
+    api_host = API_HOSTS[COUNTER % len(API_HOSTS)]
+    COUNTER = COUNTER + 1
     res = requests.request(
         method          = request.method,
         url             = request.url.replace(request.host_url, f'{api_host}/'),
