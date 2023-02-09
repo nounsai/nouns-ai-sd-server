@@ -3,6 +3,7 @@ import re
 import sys
 import json
 import time
+import numpy
 import torch
 import shutil
 import base64
@@ -16,6 +17,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 from clip_interrogator import Config, Interrogator
 from stable_diffusion_videos import StableDiffusionWalkPipeline
+from xformers.ops import MemoryEfficientAttentionFlashAttentionOp
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline
 from utils import ASPECT_RATIOS_DICT, BASE_MODELS, INSTRUCTABLE_MODELS, convert_mp4_to_mov, get_device, inference, serve_pil_image, preprocess
@@ -89,6 +91,8 @@ clip_interrogator = Interrogator(ci_config)
 
 upscale_pipe = StableDiffusionUpscalePipeline.from_pretrained("stabilityai/stable-diffusion-x4-upscaler", safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
 upscale_pipe = upscale_pipe.to('cuda')
+upscale_pipe.enable_xformers_memory_efficient_attention(attention_op=MemoryEfficientAttentionFlashAttentionOp)
+upscale_pipe.vae.enable_xformers_memory_efficient_attention(attention_op=None)
 
 #######################################################
 ######################### API #########################
@@ -510,11 +514,12 @@ def upscale():
     starter = content['base_64'].find(',')
     image_data = content['base_64'][starter+1:]
     image_data = bytes(image_data, encoding="ascii")
-    image = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
-    img = preprocess(image)
-    img = preprocess(img)
+    img = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
+    [h,w,c] = numpy.shape(img)
+    scalar = float(384 / max(h, w, 384))
+    img = img.resize((int(w*scalar), int(h*scalar)))
     images = upscale_pipe(
-        prompt='', 
+        prompt='',
         image=img
     ).images
     return serve_pil_image(images[0])
