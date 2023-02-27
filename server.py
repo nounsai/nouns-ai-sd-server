@@ -42,7 +42,7 @@ CORS(app)
 # authentication function to verify user credentials
 def authenticate(email, password):
     user = fetch_user_for_email(email)
-    return user is not None and sha256_crypt.verify(password, user['password'])
+    return user if (user is not None and sha256_crypt.verify(password, user['password'])) else None
 
 # decorator to check if user is authenticated
 def token_required(f):
@@ -74,8 +74,9 @@ def api_login():
     if not auth or not auth.email or not auth.password:
         return jsonify({'message': 'Could not verify!'}), 401
 
-    if authenticate(auth.email, auth.password):
-        token = jwt.encode({'email': auth.email, 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=300)}, config['secret_key'], algorithm='HS256')
+    user = authenticate(auth.email, auth.password)
+    if user is not None:
+        token = jwt.encode({'id': auth.id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=300)}, config['secret_key'], algorithm='HS256')
         return jsonify({'token': token}), 200
 
     return jsonify({'message': 'Could not verify!'}), 401
