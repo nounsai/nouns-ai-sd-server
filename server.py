@@ -100,7 +100,7 @@ def api_create_user():
     try:
         id = create_user(
             data['email'],
-            data['password'],
+            sha256_crypt.encrypt(data['password']),
             data['metadata']
         )
         return { 'id': id }, 200
