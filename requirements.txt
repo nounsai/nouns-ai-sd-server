@@ -8,6 +8,7 @@ gradio
 gunicorn
 moviepy==1.0.3
 nvidia-ml-py3
+passlib==1.7.4
 python-dotenv
 realesrgan==0.2.5.0
 sendgrid==6.9.7

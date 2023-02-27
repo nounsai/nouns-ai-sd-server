@@ -1,7 +1,7 @@
 import sys
 import requests
 
-from db import fetch_requests
+from old.db import fetch_requests
 
 if __name__ == '__main__':
     requests_df = fetch_requests()

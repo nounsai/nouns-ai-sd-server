@@ -26,87 +26,81 @@ _Note: This utilizes `/etc/systemd/system/nouns-ai-sd-server.service`_
 
 # Database
 
-## Models
-
-```
-CREATE TABLE models (
-	id SERIAL NOT NULL PRIMARY KEY,
-    model_id VARCHAR (128) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (model_id)
-);
-```
-
 ## Users
-
 ```
 CREATE TABLE users (
-	id SERIAL NOT NULL PRIMARY KEY,
-    email VARCHAR (30) NOT NULL,
-    password_hash VARCHAR (128) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (email)
+    id INT GENERATED ALWAYS AS IDENTITY,
+    email VARCHAR(128) NOT NULL UNIQUE,
+    password VARCHAR(128) NOT NULL,
+    metadata JSON NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id)
 );
 ```
 
 ## Images
-
 ```
 CREATE TABLE images (
-	id SERIAL NOT NULL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    model_id VARCHAR (128) NOT NULL,
-    prompt TEXT NOT NULL,
-    negative_prompt TEXT,
-    steps INTEGER NOT NULL,
-    seed BIGINT NOT NULL,
+    id INT GENERATED ALWAYS AS IDENTITY,
+    user_id INT NOT NULL,
     base_64 TEXT NOT NULL,
-    image_hash VARCHAR (256) NOT NULL,
-    aspect_ratio VARCHAR (12) NOT NULL,
-    tag VARCHAR (50),
-    inference_mode VARCHAR (128) NOT NULL DEFAULT 'Text to Image',
+    hash VARCHAR (256) NOT NULL,
+    metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (user_id, model_id, image_hash)
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(id),
+    CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
 
 ## Audio
-
 ```
 CREATE TABLE audio (
-	id SERIAL NOT NULL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    name VARCHAR (256) NOT NULL,
-    url VARCHAR (256) NOT NULL,
+    id INT GENERATED ALWAYS AS IDENTITY,
+    user_id INT NOT NULL,
+    name VARCHAR(256) NOT NULL,
+    url VARCHAR(256) NOT NULL,
+    size BIGINT NOT NULL,
+    metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (user_id, name, url)
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(id),
+    UNIQUE (user_id, name, url),
+    CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
 
-## Video Requests
-
+## Videos
 ```
-CREATE TABLE requests (
-	id SERIAL NOT NULL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    model_id INTEGER NOT NULL,
-    aspect_ratio VARCHAR (12) NOT NULL,
-    config TEXT NOT NULL,
-    config_hash VARCHAR (256) NOT NULL,
+CREATE TABLE videos (
+    id INT GENERATED ALWAYS AS IDENTITY,
+    user_id INT NOT NULL,
+    metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    state VARCHAR (16) NOT NULL DEFAULT 'QUEUED',
-    UNIQUE (user_id, model_id, config_hash)
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(id),
+    CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
 
-## Codes
+## Links
+CREATE TABLE links (
+    id INT GENERATED ALWAYS AS IDENTITY,
+    user_id INT NOT NULL,
+    metadata JSON NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+## Models
 
 ```
-CREATE TABLE codes (
-	id SERIAL NOT NULL PRIMARY KEY,
-    code VARCHAR (256) NOT NULL,
-    valid BOOLEAN NOT NULL DEFAULT true,
-    UNIQUE (code)
+CREATE TABLE models (
+    id INT GENERATED ALWAYS AS IDENTITY,
+    model_id VARCHAR (128) NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(id)
 );
 ```
 
@@ -114,24 +108,8 @@ CREATE TABLE codes (
 
 ```
 CREATE TABLE api_hosts (
-	id SERIAL NOT NULL PRIMARY KEY,
-    address VARCHAR (256) NOT NULL,
-    UNIQUE (address)
+    id INT GENERATED ALWAYS AS IDENTITY,
+    address VARCHAR (256) NOT NULL UNIQUE,
+    PRIMARY KEY(id)
 );
 ```
-
-## Links
-CREATE TABLE links (
-	id SERIAL NOT NULL PRIMARY KEY,
-    hash VARCHAR (256) NOT NULL,
-    user_id INTEGER NOT NULL,
-    model_id VARCHAR (128) NOT NULL,
-    prompt TEXT,
-    negative_prompt TEXT,
-    seed BIGINT NOT NULL,
-    image_id INTEGER,
-    strength INTEGER NOT NULL DEFAULT 0,
-    aspect_ratio VARCHAR (12) NOT NULL,
-    inference_mode VARCHAR (128) NOT NULL DEFAULT 'Text to Image',
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
