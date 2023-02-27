@@ -104,7 +104,7 @@ def create_user(email, password, metadata):
 def fetch_user_for_email(email):
 
     conn = open_connection()
-    sql = "SELECT * FROM users WHERE email={};".format(email)
+    sql = "SELECT * FROM users WHERE email=\'{}\';".format(email)
     users_df = pd.read_sql_query(sql, conn)
     close_connection(conn)
     try:
