@@ -51,14 +51,14 @@ def token_required(f):
         token = None
 
         if 'Authorization' in request.headers:
-            token = request.headers['Authorization'].split()[1]
+            token = request.headers['Authorization']
 
         if not token:
             return jsonify({'message': 'Token is missing!'}), 401
 
         try:
             data = jwt.decode(token, config['secret_key'], algorithms=["HS256"])
-            current_user_id = data['id']
+            current_user_id = str(data['id'])
         except:
             return jsonify({'message': 'Token is invalid!'}), 401
 
@@ -71,12 +71,12 @@ def token_required(f):
 def api_login():
     auth = request.authorization
 
-    if not auth or not auth.email or not auth.password:
+    if not auth or not auth.username or not auth.password:
         return jsonify({'message': 'Could not verify!'}), 401
 
-    user = authenticate(auth.email, auth.password)
+    user = authenticate(auth.username, auth.password)
     if user is not None:
-        token = jwt.encode({'id': auth.id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=300)}, config['secret_key'], algorithm='HS256')
+        token = jwt.encode({'id': user['id'], 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=300)}, config['secret_key'], algorithm='HS256')
         return jsonify({'token': token}), 200
 
     return jsonify({'message': 'Could not verify!'}), 401
