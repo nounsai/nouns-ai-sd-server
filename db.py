@@ -104,8 +104,9 @@ def create_user(email, password, metadata):
 def fetch_user_for_email(email):
 
     conn = open_connection()
-    sql = "SELECT * FROM users WHERE email=\'{}\';".format(email)
-    users_df = pd.read_sql_query(sql, conn)
+    cur = create_cursor(conn)
+    sql = "SELECT * FROM users WHERE email=%s;"
+    users_df = pd.read_sql_query(sql, conn, params=[email])
     close_connection(conn)
     try:
         return json.loads(users_df.to_json(orient="records"))[0]
@@ -116,8 +117,8 @@ def fetch_user_for_email(email):
 def fetch_user(id):
 
     conn = open_connection()
-    sql = "SELECT * FROM users WHERE id={};".format(id)
-    users_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM users WHERE id=%s;"
+    users_df = pd.read_sql_query(sql, conn, params=[id])
     close_connection(conn)
     return json.loads(users_df.to_json(orient="records"))[0]
 
@@ -136,7 +137,7 @@ def delete_user(id):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("DELETE FROM users WHERE id={};".format(id))
+    cur.execute("DELETE FROM users WHERE id=%s;", [id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
@@ -171,8 +172,8 @@ def fetch_images():
 def fetch_images_for_user(user_id, limit, offset):
 
     conn = open_connection()
-    sql = "SELECT * FROM images where user_id={} ORDER BY id DESC LIMIT {} OFFSET {};".format(user_id, limit, offset)
-    images_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM images where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
+    images_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
     close_connection(conn)
     return json.loads(images_df.to_json(orient="records"))
 
@@ -180,8 +181,8 @@ def fetch_images_for_user(user_id, limit, offset):
 def fetch_image_hashes_for_user(user_id):
 
     conn = open_connection()
-    sql = "SELECT hash FROM images where user_id={};".format(user_id)
-    image_hashes_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT hash FROM images where user_id=%s;"
+    image_hashes_df = pd.read_sql_query(sql, conn, params=[user_id])
     close_connection(conn)
     return json.loads(image_hashes_df.to_json(orient="records"))
 
@@ -189,8 +190,8 @@ def fetch_image_hashes_for_user(user_id):
 def fetch_image_for_user(id, user_id):
 
     conn = open_connection()
-    sql = "SELECT * FROM images WHERE id={} and user_id={};".format(id, user_id)
-    images_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM images WHERE id=%s and user_id=%s;"
+    images_df = pd.read_sql_query(sql, conn, params=[id, user_id])
     close_connection(conn)
     try:
         return json.loads(images_df.to_json(orient="records"))[0]
@@ -212,7 +213,7 @@ def delete_image_for_user(id, user_id):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("DELETE FROM images WHERE id={} and user_id={};".format(id, user_id))
+    cur.execute("DELETE FROM images WHERE id=%s and user_id=%s;", [id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
@@ -247,8 +248,8 @@ def fetch_audios():
 def fetch_audios_for_user(user_id, limit, offset):
 
     conn = open_connection()
-    sql = "SELECT * FROM audio where user_id={} ORDER BY id DESC LIMIT {} OFFSET {};".format(user_id, limit, offset)
-    audio_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM audio where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
+    audio_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
     close_connection(conn)
     return json.loads(audio_df.to_json(orient="records"))
 
@@ -256,8 +257,8 @@ def fetch_audios_for_user(user_id, limit, offset):
 def fetch_audio_for_user(id, user_id):
 
     conn = open_connection()
-    sql = "SELECT * FROM audio WHERE id={} and user_id={};".format(id, user_id)
-    audio_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM audio WHERE id=%s and user_id=%s;"
+    audio_df = pd.read_sql_query(sql, conn, params=[id, user_id])
     close_connection(conn)
     try:
         return json.loads(audio_df.to_json(orient="records"))[0]
@@ -279,7 +280,7 @@ def delete_audio_for_user(id, user_id):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("DELETE FROM audio WHERE id={} and user_id={};".format(id, user_id))
+    cur.execute("DELETE FROM audio WHERE id=%s and user_id=%s;", [id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
@@ -314,8 +315,8 @@ def fetch_links():
 def fetch_link(id):
 
     conn = open_connection()
-    sql = "SELECT * FROM links WHERE id={};".format(id)
-    links_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM links WHERE id=%s;"
+    links_df = pd.read_sql_query(sql, conn, params=[id])
     close_connection(conn)
     try:
         return json.loads(links_df.to_json(orient="records"))[0]
@@ -326,8 +327,8 @@ def fetch_link(id):
 def fetch_links_for_user(user_id, limit, offset):
 
     conn = open_connection()
-    sql = "SELECT * FROM links where user_id={} ORDER BY id DESC LIMIT {} OFFSET {};".format(user_id, limit, offset)
-    links_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM links where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
+    links_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
     close_connection(conn)
     return json.loads(links_df.to_json(orient="records"))
 
@@ -346,7 +347,7 @@ def delete_link_for_user(id, user_id):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("DELETE FROM links WHERE id={} and user_id={};".format(id, user_id))
+    cur.execute("DELETE FROM links WHERE id=%s and user_id=%s;", [id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
@@ -372,8 +373,8 @@ def create_video(user_id, metadata):
 def fetch_video_for_user(id, user_id):
 
     conn = open_connection()
-    sql = "SELECT * FROM videos WHERE id={} and user_id={};".format(id, user_id)
-    videos_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM videos WHERE id=%s and user_id=%s;"
+    videos_df = pd.read_sql_query(sql, conn, params=[id, user_id])
     close_connection(conn)
     try:
         return json.loads(videos_df.to_json(orient="records"))[0]
@@ -384,8 +385,8 @@ def fetch_video_for_user(id, user_id):
 def fetch_videos_for_user(user_id, limit, offset):
 
     conn = open_connection()
-    sql = "SELECT * FROM videos where user_id={} ORDER BY id DESC LIMIT {} OFFSET {};".format(user_id, limit, offset)
-    videos_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM videos where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
+    videos_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
     close_connection(conn)
     return json.loads(videos_df.to_json(orient="records"))
 
@@ -404,7 +405,7 @@ def delete_video_for_user(id, user_id):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("DELETE FROM videos WHERE id={} and user_id={};".format(id, user_id))
+    cur.execute("DELETE FROM videos WHERE id=%s and user_id=%s;", [id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
