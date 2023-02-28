@@ -126,14 +126,14 @@ def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=
 
     try:
         
-        if inf_mode == 'Image to Image':
+        if inf_mode == 'Text to Image':
             return txt_to_img(pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio)
         
         else:
             if img is None:
                 return None
             
-            if inf_mode == INFERENCE_MODES['img2img']:
+            if inf_mode == 'Image to Image':
                 return img_to_img(pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio, img, strength)
         
             elif inf_mode == 'Pix to Pix':
