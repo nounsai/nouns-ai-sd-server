@@ -13,9 +13,9 @@ from flask_cors import CORS
 from passlib.hash import sha256_crypt
 from flask import Flask, jsonify, request
 
-from middleware import setup_pipelines
-from utils import fetch_env_config, inference, serve_pil_image
-from db_two import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
+from middleware import setup_pipelines, inference
+from utils import fetch_env_config, serve_pil_image
+from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_image_hashes_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
