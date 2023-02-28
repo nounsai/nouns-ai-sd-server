@@ -576,7 +576,7 @@ def api_update_video(current_user_id, user_id, video_id):
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
-@app.route('videos/<video_id>/process', methods=['GET'])
+@app.route('/videos/<video_id>/process', methods=['GET'])
 @auth_token_required
 def api_process_video(video_id):
 
