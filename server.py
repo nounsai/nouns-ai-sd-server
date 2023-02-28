@@ -2,31 +2,30 @@ import os
 import jwt
 import sys
 import json
+import numpy
+import base64
 import datetime
+
+from PIL import Image
+from io import BytesIO 
 from functools import wraps
 from flask_cors import CORS
 from passlib.hash import sha256_crypt
 from flask import Flask, jsonify, request
+
+from middleware import setup_pipelines
+from utils import fetch_env_config, inference, serve_pil_image
 from db_two import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_image_hashes_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user
 
-currentdir = os.path.dirname(os.path.realpath(__file__))
-
-if not os.path.isfile("config.json"):
-    sys.exit("'config.json' not found! Please add it and try again.")
-else:
-    with open("config.json") as file:
-        config = json.load(file)
+config = fetch_env_config()
+PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
 CORS(app)
-
-##########################################################
-####################### MIDDLEWARE #######################
-##########################################################
 
 
 #######################################################
@@ -45,7 +44,7 @@ def authenticate(email, password):
     return user if (user is not None and sha256_crypt.verify(password, user['password'])) else None
 
 # decorator to check if user is authenticated
-def token_required(f):
+def auth_token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
@@ -66,6 +65,18 @@ def token_required(f):
 
     return decorated
 
+# decorator to check if user is authenticated
+def challenge_token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+
+        if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
+            return jsonify({'message': 'challenge-token header missing / invalid'}), 401
+
+        return f(*args, **kwargs)
+
+    return decorated
+
 # route to generate JWT token for authenticated user
 @app.route('/login', methods=['POST'])
 def api_login():
@@ -83,10 +94,8 @@ def api_login():
 
 # route to create new user
 @app.route('/users', methods=['POST'])
+@challenge_token_required
 def api_create_user():
-
-    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge-token']:
-        return "'challenge-token' header missing / invalid", 401
 
     data = json.loads(request.data)
 
@@ -111,7 +120,7 @@ def api_create_user():
 
 # route to update user
 @app.route('/users/<user_id>', methods=['PUT'])
-@token_required
+@auth_token_required
 def api_update_user(current_user_id, user_id):
 
     data = json.loads(request.data)
@@ -136,31 +145,29 @@ def api_update_user(current_user_id, user_id):
 #############################
 
 
-# @app.route('/images', methods=['POST'])
-# def api_create_image():
+@app.route('/images', methods=['POST'])
+@challenge_token_required
+def api_create_image():
 
-#     if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge-token']:
-#         return "'challenge-token' header missing / invalid", 401
+    data = json.loads(request.data)
 
-#     data = json.loads(request.data)
-
-#     images = []
-#     if data['inference_mode'] == 'Text to Image':
-#         images = inference(IMG_PIPELINE_DICT[data['model_id']], 'Text to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'])
-#     else:
-#         starter = data['base_64'].find(',')
-#         image_data = data['base_64'][starter+1:]
-#         image_data = bytes(image_data, encoding="ascii")
-#         image = Image.open(BytesIO(base64.b64decode(image_data)))
-#         if data['inference_mode'] == 'Image to Image':
-#             images = inference(I2I_PIPELINE_DICT[data['model_id']], 'Image to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'], img=image, strength=float(data['strength']))
-#         elif data['inference_mode'] == 'Pix to Pix':
-#             images = inference(P2P_PIPELINE_DICT[data['model_id']], 'Pix to Pix', data['prompt'], n_images=int(data['samples']), steps=int(data['steps']), seed=int(data['seed']), img=image)
-#     return serve_pil_image(images[0])
+    images = []
+    if data['inference_mode'] == 'Text to Image':
+        images = inference(PIPELINE_DICT['Text to Image'][data['model_id']], 'Text to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'])
+    else:
+        starter = data['base_64'].find(',')
+        image_data = data['base_64'][starter+1:]
+        image_data = bytes(image_data, encoding="ascii")
+        image = Image.open(BytesIO(base64.b64decode(image_data)))
+        if data['inference_mode'] == 'Image to Image':
+            images = inference(PIPELINE_DICT['Image to Image'][data['model_id']], 'Image to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'], img=image, strength=float(data['strength']))
+        elif data['inference_mode'] == 'Pix to Pix':
+            images = inference(PIPELINE_DICT['Pix to Pix'][data['model_id']], 'Pix to Pix', data['prompt'], n_images=int(data['samples']), steps=int(data['steps']), seed=int(data['seed']), img=image)
+    return serve_pil_image(images[0])
 
 
 @app.route('/users/<user_id>/images', methods=['POST'])
-@token_required
+@auth_token_required
 def api_create_image_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -181,7 +188,7 @@ def api_create_image_for_user(current_user_id, user_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/images', methods=['GET'])
-@token_required
+@auth_token_required
 def api_fetch_images_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -204,7 +211,7 @@ def api_fetch_images_for_user(current_user_id, user_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/image_hashes', methods=['GET'])
-@token_required
+@auth_token_required
 def api_fetch_image_hashes_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -218,7 +225,7 @@ def api_fetch_image_hashes_for_user(current_user_id, user_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/images/<image_id>', methods=['GET'])
-@token_required
+@auth_token_required
 def api_fetch_image_for_user(current_user_id, user_id, image_id):
 
     if user_id != current_user_id:
@@ -235,7 +242,7 @@ def api_fetch_image_for_user(current_user_id, user_id, image_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/images/<image_id>', methods=['PUT'])
-@token_required
+@auth_token_required
 def api_update_image(current_user_id, user_id, image_id):
 
     if user_id != current_user_id:
@@ -257,7 +264,7 @@ def api_update_image(current_user_id, user_id, image_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/images/<image_id>', methods=['DELETE'])
-@token_required
+@auth_token_required
 def api_delete_image(current_user_id, user_id, image_id):
 
     if user_id != current_user_id:
@@ -280,7 +287,7 @@ def api_delete_image(current_user_id, user_id, image_id):
 
 
 @app.route('/users/<user_id>/audio', methods=['POST'])
-@token_required
+@auth_token_required
 def api_create_audio_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -302,7 +309,7 @@ def api_create_audio_for_user(current_user_id, user_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/audios', methods=['GET'])
-@token_required
+@auth_token_required
 def api_fetch_audios_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -325,7 +332,7 @@ def api_fetch_audios_for_user(current_user_id, user_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['GET'])
-@token_required
+@auth_token_required
 def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
 
     if user_id != current_user_id:
@@ -342,7 +349,7 @@ def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['PUT'])
-@token_required
+@auth_token_required
 def api_update_audio(current_user_id, user_id, audio_id):
 
     if user_id != current_user_id:
@@ -365,7 +372,7 @@ def api_update_audio(current_user_id, user_id, audio_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['DELETE'])
-@token_required
+@auth_token_required
 def api_delete_audio(current_user_id, user_id, audio_id):
 
     if user_id != current_user_id:
@@ -388,7 +395,7 @@ def api_delete_audio(current_user_id, user_id, audio_id):
 
 
 @app.route('/users/<user_id>/links', methods=['POST'])
-@token_required
+@auth_token_required
 def api_create_link_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -407,7 +414,7 @@ def api_create_link_for_user(current_user_id, user_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/links', methods=['GET'])
-@token_required
+@auth_token_required
 def api_fetch_links_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -430,10 +437,8 @@ def api_fetch_links_for_user(current_user_id, user_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/links/<link_id>', methods=['GET'])
+@challenge_token_required
 def api_fetch_link(link_id):
-
-    if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge-token']:
-        return "'challenge-token' header missing / invalid", 401
 
     data = json.loads(request.data)
     
@@ -448,7 +453,7 @@ def api_fetch_link(link_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/links/<link_id>', methods=['PUT'])
-@token_required
+@auth_token_required
 def api_update_link(current_user_id, user_id, link_id):
 
     if user_id != current_user_id:
@@ -468,7 +473,7 @@ def api_update_link(current_user_id, user_id, link_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/links/<link_id>', methods=['DELETE'])
-@token_required
+@auth_token_required
 def api_delete_link(current_user_id, user_id, link_id):
 
     if user_id != current_user_id:
@@ -491,7 +496,7 @@ def api_delete_link(current_user_id, user_id, link_id):
 
 
 @app.route('/users/<user_id>/videos', methods=['POST'])
-@token_required
+@auth_token_required
 def api_create_video_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -510,7 +515,7 @@ def api_create_video_for_user(current_user_id, user_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/videos', methods=['GET'])
-@token_required
+@auth_token_required
 def api_fetch_videos_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -533,7 +538,7 @@ def api_fetch_videos_for_user(current_user_id, user_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/videos/<video_id>', methods=['GET'])
-@token_required
+@auth_token_required
 def api_fetch_video_for_user(current_user_id, user_id, video_id):
 
     if user_id != current_user_id:
@@ -552,7 +557,7 @@ def api_fetch_video_for_user(current_user_id, user_id, video_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/videos/<video_id>', methods=['PUT'])
-@token_required
+@auth_token_required
 def api_update_video(current_user_id, user_id, video_id):
 
     if user_id != current_user_id:
@@ -571,8 +576,21 @@ def api_update_video(current_user_id, user_id, video_id):
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
+@app.route('videos/<video_id>/process', methods=['GET'])
+@auth_token_required
+def api_process_video(video_id):
+
+    data = json.loads(request.data)
+    
+    try:
+        # TODO: Flesh out this function
+        return { 'status': 'success' }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
 @app.route('/users/<user_id>/videos/<video_id>', methods=['DELETE'])
-@token_required
+@auth_token_required
 def api_delete_video(current_user_id, user_id, video_id):
 
     if user_id != current_user_id:
@@ -599,12 +617,51 @@ def api_delete_video(current_user_id, user_id, video_id):
 def health():
     return jsonify({'message': 'API is up and running!'}), 200
 
-# protected route
-@app.route('/protected')
-@token_required
-def protected(current_user):
-    return jsonify({'message': 'This is a protected route!', 'user': current_user}), 200
+@app.route('/extend_prompt', methods=['POST'])
+@challenge_token_required
+def extend_prompt():
+
+    content = json.loads(request.data)
+    return list(PIPELINE_DICT['Text'].values())[0](content['prompt'] + ',', num_return_sequences=1)[0]['generated_text']
+
+@app.route('/interrogate', methods=['POST'])
+@challenge_token_required
+def interrogate():
+
+    content = json.loads(request.data)
+    starter = content['base_64'].find(',')
+    image_data = content['base_64'][starter+1:]
+    image_data = bytes(image_data, encoding="ascii")
+    image = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
+    return list(PIPELINE_DICT['Interrogator'].values())[0].interrogate(image)
+
+@app.route('/upscale', methods=['POST'])
+@challenge_token_required
+def upscale():
+
+    content = json.loads(request.data)
+
+    starter = content['base_64'].find(',')
+    image_data = content['base_64'][starter+1:]
+    image_data = bytes(image_data, encoding="ascii")
+    img = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
+    [h,w,c] = numpy.shape(img)
+    scalar = float(384 / max(h, w, 384))
+    img = img.resize((int(w*scalar), int(h*scalar)))
+    images = list(PIPELINE_DICT['Upscale'].values())[0](
+        prompt='',
+        image=img
+    ).images
+    return serve_pil_image(images[0])
+
+
+#######################################################
+######################## MAIN #########################
+#######################################################
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    if config['environment'] == 'prod':
+        app.run(host='0.0.0.0', port='5000', ssl_context='adhoc')
+    else:
+        app.run(host='0.0.0.0', debug=True, port='5000')

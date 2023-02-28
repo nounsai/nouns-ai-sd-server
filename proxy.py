@@ -1,25 +1,14 @@
-import os
-import sys
-import json
 import requests
 from flask_cors import CORS
 from flask import Flask, request, Response
 
 from db import fetch_api_hosts
+from utils import fetch_env_config
 
 app = Flask('__main__')
 CORS(app)
 
-#########################
-########## ENV ##########
-#########################
-
-currentdir = os.path.dirname(os.path.realpath(__file__))
-if not os.path.isfile('config.json'):
-    sys.exit('\'config.json\' not found! Please add it and try again.')
-else:
-    with open('config.json') as file:
-        config = json.load(file)
+config = fetch_env_config()
 
 API_HOSTS = fetch_api_hosts()
 COUNTER = 0

@@ -382,6 +382,15 @@ def fetch_video_for_user(id, user_id):
         return None
 
 
+def fetch_videos():
+
+    conn = open_connection()
+    sql = "SELECT * FROM videos;"
+    videos_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(videos_df.to_json(orient="records"))
+
+
 def fetch_videos_for_user(user_id, limit, offset):
 
     conn = open_connection()
@@ -409,3 +418,16 @@ def delete_video_for_user(id, user_id):
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+
+
+########################################################
+###################### API HOSTS #######################
+########################################################
+
+def fetch_api_hosts():
+
+    conn = open_connection()
+    sql = "SELECT * FROM api_hosts;"
+    api_hosts_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return api_hosts_df['address'].array
