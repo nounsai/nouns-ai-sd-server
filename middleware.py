@@ -21,7 +21,14 @@ config = fetch_env_config()
 ######################## SETUP ########################
 #######################################################
 
-PIPELINE_DICT = {}
+PIPELINE_DICT = {
+    'Text to Image': {},
+    'Image to Image': {},
+    'Pix to Pix': {},
+    'Text': {},
+    'Interrogator': {},
+    'Upscale': {},
+}
 
 def _no_validate_model_kwargs(self, model_kwargs):
     pass
