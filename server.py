@@ -634,7 +634,7 @@ def health():
 def extend_prompt():
 
     content = json.loads(request.data)
-    return list(PIPELINE_DICT['Text'].values())[0](content['prompt'] + ',', num_return_sequences=1)[0]['generated_text']
+    return {'prompt': list(PIPELINE_DICT['Text'].values())[0](content['prompt'] + ',', num_return_sequences=1)[0]['generated_text']}, 200
 
 @app.route('/interrogate', methods=['POST'])
 @challenge_token_required
@@ -645,7 +645,7 @@ def interrogate():
     image_data = content['base_64'][starter+1:]
     image_data = bytes(image_data, encoding="ascii")
     image = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
-    return list(PIPELINE_DICT['Interrogator'].values())[0].interrogate(image)
+    return {'prompt': list(PIPELINE_DICT['Interrogator'].values())[0].interrogate(image)}, 200
 
 @app.route('/upscale', methods=['POST'])
 @challenge_token_required
