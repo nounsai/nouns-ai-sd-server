@@ -16,16 +16,17 @@ from flask import Flask, jsonify, request
 from middleware import setup_pipelines, inference
 from utils import fetch_env_config, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
-        create_image, fetch_images, fetch_images_for_user, fetch_image_hashes_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
+        create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user
 
 config = fetch_env_config()
+PIPELINE_DICT = {}
 PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins="http://localhost:3000", allow_headers="*")
 
 
 #######################################################
@@ -69,7 +70,7 @@ def auth_token_required(f):
 def challenge_token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-
+        
         if 'challenge-token' not in request.headers or request.headers['challenge-token'] != config['challenge_token']:
             return jsonify({'message': 'challenge-token header missing / invalid'}), 401
 
@@ -79,7 +80,12 @@ def challenge_token_required(f):
 
 # route to generate JWT token for authenticated user
 @app.route('/login', methods=['POST'])
+@challenge_token_required
 def api_login():
+    
+    if 'Authorization' not in request.headers:
+        return jsonify({'message': 'Missing Credentials!'}), 400
+
     auth = request.authorization
 
     if not auth or not auth.username or not auth.password:
@@ -88,7 +94,7 @@ def api_login():
     user = authenticate(auth.username, auth.password)
     if user is not None:
         token = jwt.encode({'id': user['id'], 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=300)}, config['secret_key'], algorithm='HS256')
-        return jsonify({'token': token}), 200
+        return jsonify({'token': token, 'id': user['id']}), 200
 
     return jsonify({'message': 'Could not verify!'}), 401
 
@@ -114,6 +120,21 @@ def api_create_user():
             data['metadata']
         )
         return { 'id': id }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+# route to fetch user
+@app.route('/users/<user_id>', methods=['GET'])
+@auth_token_required
+def api_fetch_user(current_user_id, user_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Editing wrong user!'}), 400
+
+    try:
+        user = fetch_user(current_user_id)
+        return user, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
@@ -195,31 +216,22 @@ def api_fetch_images_for_user(current_user_id, user_id):
         return jsonify({'message': 'Wrong user!'}), 400
 
     # /images?page=1&limit=20
+    field = request.args.get('field', default = 'image', type = str)
     page = request.args.get('page', default = 1, type = int)
     limit = request.args.get('limit', default = 20, type = int)
     offset = (page - 1) * limit
 
     try:
-        images = fetch_images_for_user(
-            current_user_id,
-            limit,
-            offset
-        )
-        return images, 200
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
-
-@app.route('/users/<user_id>/image_hashes', methods=['GET'])
-@auth_token_required
-def api_fetch_image_hashes_for_user(current_user_id, user_id):
-
-    if user_id != current_user_id:
-        return jsonify({'message': 'Wrong user!'}), 400
-
-    try:
-        image_hashes = fetch_image_hashes_for_user(current_user_id)
-        return image_hashes, 200
+        if field == 'id':
+            image_ids = fetch_image_ids_for_user(current_user_id)
+            return image_ids, 200
+        else:
+            images = fetch_images_for_user(
+                current_user_id,
+                limit,
+                offset
+            )
+            return images, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500

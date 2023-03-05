@@ -178,13 +178,13 @@ def fetch_images_for_user(user_id, limit, offset):
     return json.loads(images_df.to_json(orient="records"))
 
 
-def fetch_image_hashes_for_user(user_id):
+def fetch_image_ids_for_user(user_id):
 
     conn = open_connection()
-    sql = "SELECT hash FROM images where user_id=%s;"
-    image_hashes_df = pd.read_sql_query(sql, conn, params=[user_id])
+    sql = "SELECT id FROM images where user_id=%s;"
+    image_ids_df = pd.read_sql_query(sql, conn, params=[user_id])
     close_connection(conn)
-    return json.loads(image_hashes_df.to_json(orient="records"))
+    return json.loads(image_ids_df.to_json(orient="records"))
 
 
 def fetch_image_for_user(id, user_id):
