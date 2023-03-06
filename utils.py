@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8; py-indent-offset:4 -*-
 
+import io
 import os
 import sys
 import json
@@ -153,20 +154,19 @@ def serve_pil_image(pil_image):
 
 
 def image_from_base_64(base64_string):
+
     starter = base64_string.find(',')
     image_data = base64_string[starter+1:]
     image_data = bytes(image_data, encoding="ascii")
     return Image.open(BytesIO(base64.b64decode(image_data)))
 
 
-def base_64_thumbnail_for_image(image):
-
-    now = int(time.time())
+def base_64_thumbnail_for_base_64_image(base64_string):
+    
+    buffer = io.BytesIO()
+    image = image_from_base_64(base64_string)
     [h,w,c] = np.shape(image)
     w, h = map(lambda x: int(float(x / max(w, h)) * 100), (w, h))
     tmp_image = image.resize((w, h), resample=Image.LANCZOS)
-    tmp_image.save('{}_tmp.jpg'.format(str(now)), optimize=True, quality=100)
-    with open('{}_tmp.jpg'.format(str(now))) as tmp_image:
-        thumb_string = base64.b64encode(tmp_image.read())
-    os.remove('{}_tmp.jpg'.format(str(now)))
-    return "data:image/jpeg;base64," + str(thumb_string)[2:-1]
+    tmp_image.save(buffer, format="JPEG")
+    return 'data:image/jpeg;base64,' + str(base64.b64encode(buffer.getvalue()))[2:-1]

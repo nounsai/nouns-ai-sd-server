@@ -13,7 +13,7 @@ from passlib.hash import sha256_crypt
 from flask import Flask, jsonify, request
 
 from middleware import setup_pipelines, inference
-from utils import base_64_thumbnail_for_image, fetch_env_config, image_from_base_64, serve_pil_image
+from utils import base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
@@ -196,7 +196,7 @@ def api_create_image_for_user(current_user_id, user_id):
         id = create_image(
             current_user_id,
             data['base_64'],
-            base_64_thumbnail_for_image(image_from_base_64(data['base_64'])),
+            base_64_thumbnail_for_base_64_image(data['base_64']),
             data['hash'],
             data['metadata']
         )
