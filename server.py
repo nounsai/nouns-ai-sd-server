@@ -244,7 +244,7 @@ def api_fetch_image_for_user(current_user_id, user_id, image_id):
         return jsonify({'message': 'Wrong user!'}), 400
     
     try:
-        image = fetch_image_for_user(current_user_id, image_id)
+        image = fetch_image_for_user(image_id, current_user_id)
         if image is not None:
             return image, 200
         else:
