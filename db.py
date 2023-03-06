@@ -148,11 +148,11 @@ def delete_user(id):
 ########################################################
 
 
-def create_image(user_id, base_64, hash, metadata):
+def create_image(user_id, base_64, thumb_base_64, hash, metadata):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO images (user_id, base_64, hash, metadata) VALUES (%s, %s, %s, %s) RETURNING id;", (user_id, json.dumps(base_64), hash, json.dumps(metadata)))
+    cur.execute("INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata) VALUES (%s, %s, %s, %s, %s) RETURNING id;", (user_id, json.dumps(base_64), json.dumps(thumb_base_64), hash, json.dumps(metadata)))
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
@@ -199,11 +199,11 @@ def fetch_image_for_user(id, user_id):
         return None
 
 
-def update_image_for_user(id, user_id, base_64, hash, metadata):
+def update_image_for_user(id, user_id, base_64, thumb_base_64, hash, metadata):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("UPDATE images SET base_64=%s, hash=%s, metadata=%s WHERE id=%s and user_id=%s;", [json.dumps(base_64), hash, json.dumps(metadata), id, user_id])
+    cur.execute("UPDATE images SET base_64=%s, thumb_base_64=%s, hash=%s, metadata=%s WHERE id=%s and user_id=%s;", [json.dumps(base_64), json.dumps(thumb_base_64), hash, json.dumps(metadata), id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)

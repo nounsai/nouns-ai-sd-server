@@ -44,6 +44,7 @@ CREATE TABLE images (
     id INT GENERATED ALWAYS AS IDENTITY,
     user_id INT NOT NULL,
     base_64 TEXT NOT NULL,
+    thumb_base_64 TEXT NOT NULL,
     hash VARCHAR (256) NOT NULL,
     metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),

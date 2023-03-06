@@ -6,6 +6,7 @@ import sys
 import json
 import time
 import torch
+import base64
 import dropbox
 import pathlib
 import subprocess
@@ -143,9 +144,29 @@ def preprocess(image):
     return 2.0 * image - 1.0
 
 
-def serve_pil_image(pil_img):
+def serve_pil_image(pil_image):
 
-    img_io = BytesIO()
-    pil_img.save(img_io, 'JPEG', quality=100)
-    img_io.seek(0)
-    return send_file(img_io, mimetype='image/jpeg')
+    image_io = BytesIO()
+    pil_image.save(image_io, 'JPEG', quality=100)
+    image_io.seek(0)
+    return send_file(image_io, mimetype='image/jpeg')
+
+
+def image_from_base_64(base64_string):
+    starter = base64_string.find(',')
+    image_data = base64_string[starter+1:]
+    image_data = bytes(image_data, encoding="ascii")
+    return Image.open(BytesIO(base64.b64decode(image_data)))
+
+
+def base_64_thumbnail_for_image(image):
+
+    now = int(time.time())
+    [h,w,c] = np.shape(image)
+    w, h = map(lambda x: int(float(x / max(w, h)) * 100), (w, h))
+    tmp_image = image.resize((w, h), resample=Image.LANCZOS)
+    tmp_image.save('{}_tmp.jpg'.format(str(now)), optimize=True, quality=100)
+    with open('{}_tmp.jpg'.format(str(now))) as tmp_image:
+        thumb_string = base64.b64encode(tmp_image.read())
+    os.remove('{}_tmp.jpg'.format(str(now)))
+    return "data:image/jpeg;base64," + str(thumb_string)[2:-1]

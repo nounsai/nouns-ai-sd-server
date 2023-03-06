@@ -3,7 +3,6 @@ import jwt
 import sys
 import json
 import numpy
-import base64
 import datetime
 
 from PIL import Image
@@ -14,7 +13,7 @@ from passlib.hash import sha256_crypt
 from flask import Flask, jsonify, request
 
 from middleware import setup_pipelines, inference
-from utils import fetch_env_config, serve_pil_image
+from utils import base_64_thumbnail_for_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
@@ -176,10 +175,7 @@ def api_create_image():
     if data['inference_mode'] == 'Text to Image':
         images = inference(PIPELINE_DICT['Text to Image'][data['model_id']], 'Text to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'])
     else:
-        starter = data['base_64'].find(',')
-        image_data = data['base_64'][starter+1:]
-        image_data = bytes(image_data, encoding="ascii")
-        image = Image.open(BytesIO(base64.b64decode(image_data)))
+        image = image_from_base_64(data['base_64'])
         if data['inference_mode'] == 'Image to Image':
             images = inference(PIPELINE_DICT['Image to Image'][data['model_id']], 'Image to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'], img=image, strength=float(data['strength']))
         elif data['inference_mode'] == 'Pix to Pix':
@@ -200,6 +196,7 @@ def api_create_image_for_user(current_user_id, user_id):
         id = create_image(
             current_user_id,
             data['base_64'],
+            base_64_thumbnail_for_image(image_from_base_64(data['base_64'])),
             data['hash'],
             data['metadata']
         )
@@ -641,10 +638,7 @@ def extend_prompt():
 def interrogate():
 
     content = json.loads(request.data)
-    starter = content['base_64'].find(',')
-    image_data = content['base_64'][starter+1:]
-    image_data = bytes(image_data, encoding="ascii")
-    image = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
+    image = image_from_base_64(content['base_64']).convert('RGB')
     return {'prompt': list(PIPELINE_DICT['Interrogator'].values())[0].interrogate(image)}, 200
 
 @app.route('/upscale', methods=['POST'])
@@ -652,17 +646,14 @@ def interrogate():
 def upscale():
 
     content = json.loads(request.data)
-
-    starter = content['base_64'].find(',')
-    image_data = content['base_64'][starter+1:]
-    image_data = bytes(image_data, encoding="ascii")
-    img = Image.open(BytesIO(base64.b64decode(image_data))).convert('RGB')
-    [h,w,c] = numpy.shape(img)
+    
+    image = image_from_base_64(content['base_64']).convert('RGB')
+    [h,w,c] = numpy.shape(image)
     scalar = float(384 / max(h, w, 384))
-    img = img.resize((int(w*scalar), int(h*scalar)))
+    image = image.resize((int(w*scalar), int(h*scalar)))
     images = list(PIPELINE_DICT['Upscale'].values())[0](
         prompt='',
-        image=img
+        image=image
     ).images
     return serve_pil_image(images[0])
 
