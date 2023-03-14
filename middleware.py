@@ -149,14 +149,18 @@ def unclip_images(video_id, user_id, unclip_pipeline, metadata):
 
         prev_image = image_from_base_64(fetch_image(image_ids[0])['base_64'])
         video_width, video_height = prev_image.size
-        
+
         for frame in range(len(image_ids) - 1):
             image_list = [prev_image]
             curr_image = image_from_base_64(fetch_image(image_ids[frame+1])['base_64'])
+            steps = int((timestamps[frame+1] - timestamps[frame]) * FPS) - 1 # 10 fps needed for .1s granularity, first image is already prepended
+
             images = unclip_pipeline(
                 image = [prev_image, curr_image],
-                steps = int((timestamps[frame+1] - timestamps[frame]) * FPS) - 1, # 10 fps needed for .1s granularity, first image is already prepended
-                generator = generator
+                steps = steps,
+                generator = generator,
+                decoder_latents = torch.randn(steps, 3, video_height / 4, video_width / 4),
+                super_res_latents = torch.randn(steps, 3, video_height, video_width)
             ).images
             image_list = image_list + images
 
@@ -190,7 +194,8 @@ def unclip_images(video_id, user_id, unclip_pipeline, metadata):
         
         convert_mp4_to_mov('dreams/video.mp4', 'dreams/video.mov')
         meta = dropbox_upload_file(
-            'dreams/video.mov',
+            'dreams',
+            'video.mov',
             '/Video/{}.mov'.format(video_id)
         )
         link = dropbox_get_link('/Video/{}.mov'.format(video_id))
