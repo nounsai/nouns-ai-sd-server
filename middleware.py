@@ -17,8 +17,8 @@ from xformers.ops import MemoryEfficientAttentionFlashAttentionOp
 from moviepy.editor import AudioFileClip, VideoFileClip, concatenate_videoclips
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline
 
-from db import fetch_image
-from utils import convert_mp4_to_mov, fetch_env_config, get_device, image_from_base_64, preprocess, refresh_dir, \
+from db import fetch_image, fetch_user, update_video_for_user
+from utils import convert_mp4_to_mov, dropbox_get_link, dropbox_upload_file, fetch_env_config, get_device, image_from_base_64, preprocess, refresh_dir, \
                  BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UNCLIP_MODELS, UPSCALE_MODELS
 
 config = fetch_env_config()
@@ -131,7 +131,15 @@ def pix_to_pix(p2p_pipeline, prompt, generator, n_images, steps, scale, img):
     return images
 
 
-def unclip_images(unclip_pipeline, image_ids, timestamps, seed, audio_id):
+def unclip_images(video_id, user_id, unclip_pipeline, metadata):
+
+    image_ids = metadata['image_ids']
+    timestamps = metadata['timestamps']
+    seed = metadata['seed']
+    audio_id = metadata['audio_id']
+
+    metadata['state'] = 'PROCESSING'
+    update_video_for_user(video_id, user_id, metadata)
 
     try:
         FPS = 10
@@ -179,11 +187,39 @@ def unclip_images(unclip_pipeline, image_ids, timestamps, seed, audio_id):
                 pass
             video = video.set_audio(audio)
             video.write_videofile('dreams/video.mp4')
-            convert_mp4_to_mov('dreams/video.mp4', 'dreams/video.mov')
         
-        return True
+        convert_mp4_to_mov('dreams/video.mp4', 'dreams/video.mov')
+        meta = dropbox_upload_file(
+            'dreams/video.mov',
+            '/Video/{}.mov'.format(video_id)
+        )
+        link = dropbox_get_link('/Video/{}.mov'.format(video_id))
+
+        sg = SendGridAPIClient(config['sendgrid_api_key'])
+        user = fetch_user(user_id)
+        internal_message = Mail(
+            from_email='admin@nounsai.wtf',
+            to_emails=[To('theheroshep@gmail.com'), To('eolszewski@gmail.com')],
+            subject='Video #{} Has Processed!'.format(video_id),
+            html_content='<p>Download here: {}</p>'.format(link)
+        )
+        external_message = Mail(
+            from_email='admin@nounsai.wtf',
+            to_emails=[To(user['email'])],
+            subject='Your Video Has Processed!'.format(video_id),
+            html_content='<p>Download here: {}</p>'.format(link)
+        )
+        response = sg.send(internal_message)
+        response = sg.send(external_message)
+
+        metadata['state'] = 'PROCESSED'
+        update_video_for_user(video_id, user_id, metadata)
+        
+        return link
 
     except Exception as e:
+        metadata['state'] = 'ERROR'
+        update_video_for_user(video_id, user_id, metadata)
         print('Internal server error with unclip_images: {}'.format(str(e)))
         return False
 

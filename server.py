@@ -593,16 +593,15 @@ def api_process_video(video_id):
         video = fetch_video(video_id)
         if video is not None:
             
-            success = unclip_images(
+            link = unclip_images(
+                video_id,
+                video['user_id'],
                 PIPELINE_DICT['Unclip']['kakaobrain/karlo-v1-alpha-image-variations'], 
-                video['metadata']['image_ids'], 
-                video['metadata']['timestamps'],
-                video['metadata']['seed'],
-                video['metadata']['audio_id']
+                video['metadata']
             )
 
-            if success:
-                return { 'status': 'success' }, 200
+            if link:
+                return { 'link': link }, 200
             else:
                 return { 'error': "Internal server error" }, 500
         else:
