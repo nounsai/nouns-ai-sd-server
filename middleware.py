@@ -4,6 +4,7 @@
 import sys
 import cv2
 import time
+import numpy
 import torch
 from googletrans import Translator
 
@@ -146,10 +147,8 @@ def unclip_images(unclip_pipeline, image_ids, timestamps, seed, audio_id):
             curr_image = image_from_base_64(fetch_image(image_ids[frame+1])['base_64'])
             images = unclip_pipeline(
                 image = [prev_image, curr_image],
-                steps = (timestamps[frame+1] - timestamps[frame]) * (FPS - 1), # 10 fps needed for .1s granularity, first image is already prepended
-                generator = generator,
-                height = video_height,
-                width = video_width
+                steps = int((timestamps[frame+1] - timestamps[frame]) * FPS) - 1, # 10 fps needed for .1s granularity, first image is already prepended
+                generator = generator
             ).images
             image_list = image_list + images
 
@@ -160,7 +159,7 @@ def unclip_images(unclip_pipeline, image_ids, timestamps, seed, audio_id):
             out = cv2.VideoWriter('dreams/video_%s.mp4' % frame, cv2.VideoWriter_fourcc(*'mp4v'), FPS, (video_width, video_height))
             videos_list.append('dreams/video_%s.mp4' % frame)
             for i in range(len(image_list)):
-                out.write(image_list[i])
+                out.write(numpy.asarray(image_list[i]))
             out.release()
             
             prev_image = curr_image
