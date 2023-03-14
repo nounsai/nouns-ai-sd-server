@@ -12,13 +12,13 @@ from flask_cors import CORS
 from passlib.hash import sha256_crypt
 from flask import Flask, jsonify, request
 
-from middleware import setup_pipelines, inference
+from middleware import inference, setup_pipelines, unclip_images
 from utils import base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
-        create_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user
+        create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -586,14 +586,28 @@ def api_update_video(current_user_id, user_id, video_id):
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/videos/<video_id>/process', methods=['GET'])
-@auth_token_required
+@challenge_token_required
 def api_process_video(video_id):
 
-    data = json.loads(request.data)
-    
     try:
-        # TODO: Flesh out this function
-        return { 'status': 'success' }, 200
+        video = fetch_video(video_id)
+        if video is not None:
+            
+            success = unclip_images(
+                PIPELINE_DICT['Unclip']['kakaobrain/karlo-v1-alpha-image-variations'], 
+                video['metadata']['image_ids'], 
+                video['metadata']['timestamps'],
+                video['metadata']['seed'],
+                video['metadata']['audio_id']
+            )
+
+            if success:
+                return { 'status': 'success' }, 200
+            else:
+                return { 'error': "Internal server error" }, 500
+        else:
+            return { 'error': "Video not found" }, 404
+    
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500

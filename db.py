@@ -169,6 +169,18 @@ def fetch_images():
     return json.loads(images_df.to_json(orient="records"))
 
 
+def fetch_image(id):
+
+    conn = open_connection()
+    sql = "SELECT * FROM images WHERE id=%s;"
+    images_df = pd.read_sql_query(sql, conn, params=[id])
+    close_connection(conn)
+    try:
+        return json.loads(images_df.to_json(orient="records"))[0]
+    except Exception as e:
+        return None
+
+
 def fetch_images_for_user(user_id, limit, offset):
 
     conn = open_connection()
@@ -370,6 +382,36 @@ def create_video(user_id, metadata):
     return id
 
 
+def fetch_videos():
+
+    conn = open_connection()
+    sql = "SELECT * FROM videos;"
+    videos_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(videos_df.to_json(orient="records"))
+
+
+def fetch_video(id):
+
+    conn = open_connection()
+    sql = "SELECT * FROM videos WHERE id=%s;"
+    videos_df = pd.read_sql_query(sql, conn, params=[id])
+    close_connection(conn)
+    try:
+        return json.loads(videos_df.to_json(orient="records"))[0]
+    except Exception as e:
+        return None
+
+
+def fetch_videos_for_user(user_id, limit, offset):
+
+    conn = open_connection()
+    sql = "SELECT * FROM videos where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
+    videos_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
+    close_connection(conn)
+    return json.loads(videos_df.to_json(orient="records"))
+
+
 def fetch_video_for_user(id, user_id):
 
     conn = open_connection()
@@ -380,24 +422,6 @@ def fetch_video_for_user(id, user_id):
         return json.loads(videos_df.to_json(orient="records"))[0]
     except Exception as e:
         return None
-
-
-def fetch_videos():
-
-    conn = open_connection()
-    sql = "SELECT * FROM videos;"
-    videos_df = pd.read_sql_query(sql, conn)
-    close_connection(conn)
-    return json.loads(videos_df.to_json(orient="records"))
-
-
-def fetch_videos_for_user(user_id, limit, offset):
-
-    conn = open_connection()
-    sql = "SELECT * FROM videos where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
-    videos_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
-    close_connection(conn)
-    return json.loads(videos_df.to_json(orient="records"))
 
 
 def update_video_for_user(id, user_id, metadata):

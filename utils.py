@@ -8,6 +8,7 @@ import json
 import time
 import torch
 import base64
+import shutil
 import dropbox
 import pathlib
 import subprocess
@@ -39,6 +40,9 @@ config = fetch_env_config()
 
 BASE_MODELS = [
     'alxdfy/noggles-v21-6400-best'
+]
+UNCLIP_MODELS = [
+    'kakaobrain/karlo-v1-alpha-image-variations'
 ]
 INSTRUCTABLE_MODELS = [
     'timbrooks/instruct-pix2pix'
@@ -115,6 +119,13 @@ def dropbox_get_link(dropbox_file_path):
 #######################################################
 ####################### HELPERS #######################
 #######################################################
+
+def refresh_dir(dir):
+    
+    if os.path.isdir(dir):
+        shutil.rmtree(dir)
+    os.mkdir(dir)
+
 
 def get_device():
 
