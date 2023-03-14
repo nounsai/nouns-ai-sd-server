@@ -6,6 +6,7 @@ import cv2
 import time
 import numpy
 import torch
+from PIL import Image
 from googletrans import Translator
 
 from transformers import pipeline
@@ -148,19 +149,21 @@ def unclip_images(video_id, user_id, unclip_pipeline, metadata):
         videos_list = []
 
         prev_image = image_from_base_64(fetch_image(image_ids[0])['base_64'])
+        prev_image = prev_image.resize((256, 256), resample=Image.LANCZOS)
         video_width, video_height = prev_image.size
 
         for frame in range(len(image_ids) - 1):
             image_list = [prev_image]
             curr_image = image_from_base_64(fetch_image(image_ids[frame+1])['base_64'])
+            curr_image = curr_image.resize((256, 256), resample=Image.LANCZOS)
             steps = int((timestamps[frame+1] - timestamps[frame]) * FPS) - 1 # 10 fps needed for .1s granularity, first image is already prepended
 
             images = unclip_pipeline(
                 image = [prev_image, curr_image],
                 steps = steps,
-                generator = generator,
-                decoder_latents = torch.randn(steps, 3, video_height / 4, video_width / 4),
-                super_res_latents = torch.randn(steps, 3, video_height, video_width)
+                generator = generator
+                # decoder_latents = torch.randn(steps, 3, int(video_height / 4), int(video_width / 4)),
+                # super_res_latents = torch.randn(steps, 3, int(video_height), int(video_width))
             ).images
             image_list = image_list + images
 
