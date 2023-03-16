@@ -193,14 +193,15 @@ def api_create_image_for_user(current_user_id, user_id):
     data = json.loads(request.data)
     
     try:
+        thumbnail = base_64_thumbnail_for_base_64_image(data['base_64'])
         id = create_image(
             current_user_id,
             data['base_64'],
-            base_64_thumbnail_for_base_64_image(data['base_64']),
+            thumbnail,
             data['hash'],
             data['metadata']
         )
-        return { 'id': id }, 200
+        return { 'id': id, 'thumbnail': thumbnail }, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
