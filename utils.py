@@ -41,12 +41,6 @@ config = fetch_env_config()
 BASE_MODELS = [
     'alxdfy/noggles-v21-6400-best'
 ]
-UNCLIP_MODELS = [
-    'alxdfy/noggles-v21-6400-best'
-]
-# UNCLIP_MODELS = [
-#     'kakaobrain/karlo-v1-alpha-image-variations'
-# ]
 INSTRUCTABLE_MODELS = [
     'timbrooks/instruct-pix2pix'
 ]

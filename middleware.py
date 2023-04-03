@@ -16,11 +16,11 @@ from clip_interrogator import Config, Interrogator
 from transformers.generation_utils import GenerationMixin
 from xformers.ops import MemoryEfficientAttentionFlashAttentionOp
 from moviepy.editor import AudioFileClip, VideoFileClip, concatenate_videoclips
-from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline, StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
 
 from db import fetch_image, fetch_user, update_video_for_user
 from utils import convert_mp4_to_mov, dropbox_get_link, dropbox_upload_file, fetch_env_config, get_device, image_from_base_64, preprocess, refresh_dir, \
-                 BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UNCLIP_MODELS, UPSCALE_MODELS
+                 BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UPSCALE_MODELS
 
 config = fetch_env_config()
 
@@ -34,8 +34,8 @@ PIPELINE_DICT = {
     'Pix to Pix': {},
     'Text': {},
     'Interrogator': {},
-    'Unclip': {},
     'Upscale': {},
+    'ControlNet': {},
 }
 
 def _no_validate_model_kwargs(self, model_kwargs):
@@ -43,6 +43,7 @@ def _no_validate_model_kwargs(self, model_kwargs):
 
 def setup_pipelines():
     GenerationMixin._validate_model_kwargs = _no_validate_model_kwargs
+    control_net = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-canny-diffusers", torch_dtype=torch.float16)
 
     if get_device() == 'cuda':
         for base_model in BASE_MODELS:
@@ -52,13 +53,14 @@ def setup_pipelines():
             PIPELINE_DICT['Image to Image'][base_model] = StableDiffusionImg2ImgPipeline.from_pretrained(base_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['Image to Image'][base_model].scheduler = DPMSolverMultistepScheduler.from_config(PIPELINE_DICT['Image to Image'][base_model].scheduler.config)
             PIPELINE_DICT['Image to Image'][base_model] = PIPELINE_DICT['Image to Image'][base_model].to('cuda')
+            PIPELINE_DICT['ControlNet'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+            PIPELINE_DICT['ControlNet'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet'][base_model].scheduler.config)
+            PIPELINE_DICT['ControlNet'][base_model].enable_model_cpu_offload()
+            PIPELINE_DICT['ControlNet'][base_model].enable_xformers_memory_efficient_attention()
         for instructable_model in INSTRUCTABLE_MODELS:
             PIPELINE_DICT['Pix to Pix'][instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['Pix to Pix'][instructable_model] = PIPELINE_DICT['Pix to Pix'][instructable_model].to('cuda')
             PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler = EulerAncestralDiscreteScheduler.from_config(PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler.config)
-        for unclip_model in UNCLIP_MODELS:
-            PIPELINE_DICT['Unclip'][unclip_model] = DiffusionPipeline.from_pretrained(unclip_model, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16, custom_pipeline="./research/unclip_image_interpolation.py")
-            PIPELINE_DICT['Unclip'][unclip_model] = PIPELINE_DICT['Unclip'][unclip_model].to('cuda')
             
     else:
         sys.exit('Need CUDA to run this server!')
@@ -132,104 +134,128 @@ def pix_to_pix(p2p_pipeline, prompt, generator, n_images, steps, scale, img):
     return images
 
 
-def unclip_images(video_id, user_id, unclip_pipeline, metadata):
+def control_net(control_net_pipeline, prompt, generator, negative_prompt, steps, img):
 
-    image_ids = metadata['image_ids']
-    timestamps = metadata['timestamps']
-    seed = metadata['seed']
-    audio_id = metadata['audio_id']
+    img = numpy.array(img)
 
-    metadata['state'] = 'PROCESSING'
-    update_video_for_user(video_id, user_id, metadata)
+    low_threshold = 100
+    high_threshold = 200
 
-    try:
-        FPS = 10
-        generator = torch.Generator('cuda').manual_seed(seed)
-        refresh_dir('dreams')
-        videos_list = []
+    img = cv2.Canny(img, low_threshold, high_threshold)
+    img = img[:, :, None]
+    img = numpy.concatenate([img, img, img], axis=2)
+    canny_img = Image.fromarray(img)
+    
+    translator = Translator()
 
-        prev_image = image_from_base_64(fetch_image(image_ids[0])['base_64'])
-        prev_image = prev_image.resize((256, 256), resample=Image.LANCZOS)
-        video_width, video_height = prev_image.size
+    images = control_net_pipeline(
+        prompt,
+        canny_img,
+        negative_prompt= "" if len(negative_prompt) == 0 else translator.translate(negative_prompt).text,
+        generator=generator,
+        num_inference_steps=steps,
+    ).images
+    return images
 
-        for frame in range(len(image_ids) - 1):
-            image_list = [prev_image]
-            curr_image = image_from_base_64(fetch_image(image_ids[frame+1])['base_64'])
-            curr_image = curr_image.resize((256, 256), resample=Image.LANCZOS)
-            steps = int((timestamps[frame+1] - timestamps[frame]) * FPS) - 1 # 10 fps needed for .1s granularity, first image is already prepended
 
-            images = unclip_pipeline(
-                image = [prev_image, curr_image],
-                steps = steps,
-                generator = generator
-                # decoder_latents = torch.randn(steps, 3, int(video_height / 4), int(video_width / 4)),
-                # super_res_latents = torch.randn(steps, 3, int(video_height), int(video_width))
-            ).images
-            image_list = image_list + images
+# def unclip_images(video_id, user_id, unclip_pipeline, metadata):
 
-            if frame == len(image_ids) - 2:
-                image_list.pop()
-                image_list.append(curr_image)
+#     image_ids = metadata['image_ids']
+#     timestamps = metadata['timestamps']
+#     seed = metadata['seed']
+#     audio_id = metadata['audio_id']
 
-            out = cv2.VideoWriter('dreams/video_%s.mp4' % frame, cv2.VideoWriter_fourcc(*'mp4v'), FPS, (video_width, video_height))
-            videos_list.append('dreams/video_%s.mp4' % frame)
-            for i in range(len(image_list)):
-                out.write(numpy.asarray(image_list[i]))
-            out.release()
+#     metadata['state'] = 'PROCESSING'
+#     update_video_for_user(video_id, user_id, metadata)
+
+#     try:
+#         FPS = 10
+#         generator = torch.Generator('cuda').manual_seed(seed)
+#         refresh_dir('dreams')
+#         videos_list = []
+
+#         prev_image = image_from_base_64(fetch_image(image_ids[0])['base_64'])
+#         prev_image = prev_image.resize((256, 256), resample=Image.LANCZOS)
+#         video_width, video_height = prev_image.size
+
+#         for frame in range(len(image_ids) - 1):
+#             image_list = [prev_image]
+#             curr_image = image_from_base_64(fetch_image(image_ids[frame+1])['base_64'])
+#             curr_image = curr_image.resize((256, 256), resample=Image.LANCZOS)
+#             steps = int((timestamps[frame+1] - timestamps[frame]) * FPS) - 1 # 10 fps needed for .1s granularity, first image is already prepended
+
+#             images = unclip_pipeline(
+#                 image = [prev_image, curr_image],
+#                 steps = steps,
+#                 generator = generator
+#                 # decoder_latents = torch.randn(steps, 3, int(video_height / 4), int(video_width / 4)),
+#                 # super_res_latents = torch.randn(steps, 3, int(video_height), int(video_width))
+#             ).images
+#             image_list = image_list + images
+
+#             if frame == len(image_ids) - 2:
+#                 image_list.pop()
+#                 image_list.append(curr_image)
+
+#             out = cv2.VideoWriter('dreams/video_%s.mp4' % frame, cv2.VideoWriter_fourcc(*'mp4v'), FPS, (video_width, video_height))
+#             videos_list.append('dreams/video_%s.mp4' % frame)
+#             for i in range(len(image_list)):
+#                 out.write(numpy.asarray(image_list[i]))
+#             out.release()
             
-            prev_image = curr_image
+#             prev_image = curr_image
 
-        concat_video = concatenate_videoclips([VideoFileClip(video) for video in videos_list])
-        concat_video.to_videofile('dreams/video.mp4', fps=FPS, remove_temp=False)
+#         concat_video = concatenate_videoclips([VideoFileClip(video) for video in videos_list])
+#         concat_video.to_videofile('dreams/video.mp4', fps=FPS, remove_temp=False)
 
-        video = VideoFileClip('dreams/video.mp4')
+#         video = VideoFileClip('dreams/video.mp4')
 
-        if audio_id != -1:
-            audio_path = 'dreams/audio_{}.mp3'.format(audio_id)
-            audio = AudioFileClip(audio_path)
-            try:
-                audio = audio.subclip(0, min(video.duration, audio.duration))
-            except Exception as e:
-                print('exception in clipping audio: ', e)
-                pass
-            video = video.set_audio(audio)
-            video.write_videofile('dreams/video.mp4')
+#         if audio_id != -1:
+#             audio_path = 'dreams/audio_{}.mp3'.format(audio_id)
+#             audio = AudioFileClip(audio_path)
+#             try:
+#                 audio = audio.subclip(0, min(video.duration, audio.duration))
+#             except Exception as e:
+#                 print('exception in clipping audio: ', e)
+#                 pass
+#             video = video.set_audio(audio)
+#             video.write_videofile('dreams/video.mp4')
         
-        convert_mp4_to_mov('dreams/video.mp4', 'dreams/video.mov')
-        meta = dropbox_upload_file(
-            'dreams',
-            'video.mov',
-            '/Video/{}.mov'.format(video_id)
-        )
-        link = dropbox_get_link('/Video/{}.mov'.format(video_id))
+#         convert_mp4_to_mov('dreams/video.mp4', 'dreams/video.mov')
+#         meta = dropbox_upload_file(
+#             'dreams',
+#             'video.mov',
+#             '/Video/{}.mov'.format(video_id)
+#         )
+#         link = dropbox_get_link('/Video/{}.mov'.format(video_id))
 
-        sg = SendGridAPIClient(config['sendgrid_api_key'])
-        user = fetch_user(user_id)
-        internal_message = Mail(
-            from_email='admin@nounsai.wtf',
-            to_emails=[To('theheroshep@gmail.com'), To('eolszewski@gmail.com')],
-            subject='Video #{} Has Processed!'.format(video_id),
-            html_content='<p>Download here: {}</p>'.format(link)
-        )
-        external_message = Mail(
-            from_email='admin@nounsai.wtf',
-            to_emails=[To(user['email'])],
-            subject='Your Video Has Processed!'.format(video_id),
-            html_content='<p>Download here: {}</p>'.format(link)
-        )
-        response = sg.send(internal_message)
-        response = sg.send(external_message)
+#         sg = SendGridAPIClient(config['sendgrid_api_key'])
+#         user = fetch_user(user_id)
+#         internal_message = Mail(
+#             from_email='admin@nounsai.wtf',
+#             to_emails=[To('theheroshep@gmail.com'), To('eolszewski@gmail.com')],
+#             subject='Video #{} Has Processed!'.format(video_id),
+#             html_content='<p>Download here: {}</p>'.format(link)
+#         )
+#         external_message = Mail(
+#             from_email='admin@nounsai.wtf',
+#             to_emails=[To(user['email'])],
+#             subject='Your Video Has Processed!'.format(video_id),
+#             html_content='<p>Download here: {}</p>'.format(link)
+#         )
+#         response = sg.send(internal_message)
+#         response = sg.send(external_message)
 
-        metadata['state'] = 'PROCESSED'
-        update_video_for_user(video_id, user_id, metadata)
+#         metadata['state'] = 'PROCESSED'
+#         update_video_for_user(video_id, user_id, metadata)
         
-        return link
+#         return link
 
-    except Exception as e:
-        metadata['state'] = 'ERROR'
-        update_video_for_user(video_id, user_id, metadata)
-        print('Internal server error with unclip_images: {}'.format(str(e)))
-        return False
+#     except Exception as e:
+#         metadata['state'] = 'ERROR'
+#         update_video_for_user(video_id, user_id, metadata)
+#         print('Internal server error with unclip_images: {}'.format(str(e)))
+#         return False
 
 
 def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=25, scale=7.5, seed=1437181781, aspect_ratio='768:768', img=None, strength=0.5):
@@ -250,6 +276,9 @@ def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=
         
             elif inf_mode == 'Pix to Pix':
                 return pix_to_pix(pipeline, prompt, generator, n_images, steps, scale, img)
+        
+            elif inf_mode == 'ControlNet':
+                return control_net(pipeline, prompt, generator, negative_prompt, steps, img)
         
     except Exception as e:
         print('Internal server error with inferencing {}: {}'.format(inf_mode, str(e)))

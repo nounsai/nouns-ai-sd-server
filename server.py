@@ -12,7 +12,7 @@ from flask_cors import CORS
 from passlib.hash import sha256_crypt
 from flask import Flask, jsonify, request
 
-from middleware import inference, setup_pipelines, unclip_images
+from middleware import inference, setup_pipelines
 from utils import base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
@@ -180,6 +180,9 @@ def api_create_image():
             images = inference(PIPELINE_DICT['Image to Image'][data['model_id']], 'Image to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'], img=image, strength=float(data['strength']))
         elif data['inference_mode'] == 'Pix to Pix':
             images = inference(PIPELINE_DICT['Pix to Pix'][data['model_id']], 'Pix to Pix', data['prompt'], n_images=int(data['samples']), steps=int(data['steps']), seed=int(data['seed']), img=image)
+        elif data['inference_mode'] == 'ControlNet':
+            images = inference(PIPELINE_DICT['ControlNet'][data['model_id']], 'ControlNet', data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), img=image)
+
     return serve_pil_image(images[0])
 
 
@@ -586,31 +589,31 @@ def api_update_video(current_user_id, user_id, video_id):
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
-@app.route('/videos/<video_id>/process', methods=['GET'])
-@challenge_token_required
-def api_process_video(video_id):
+# @app.route('/videos/<video_id>/process', methods=['GET'])
+# @challenge_token_required
+# def api_process_video(video_id):
 
-    try:
-        video = fetch_video(video_id)
-        if video is not None:
+#     try:
+#         video = fetch_video(video_id)
+#         if video is not None:
             
-            link = unclip_images(
-                video_id,
-                video['user_id'],
-                PIPELINE_DICT['Unclip']['kakaobrain/karlo-v1-alpha-image-variations'], 
-                video['metadata']
-            )
+#             link = unclip_images(
+#                 video_id,
+#                 video['user_id'],
+#                 PIPELINE_DICT['Unclip']['kakaobrain/karlo-v1-alpha-image-variations'], 
+#                 video['metadata']
+#             )
 
-            if link:
-                return { 'link': link }, 200
-            else:
-                return { 'error': "Internal server error" }, 500
-        else:
-            return { 'error': "Video not found" }, 404
+#             if link:
+#                 return { 'link': link }, 200
+#             else:
+#                 return { 'error': "Internal server error" }, 500
+#         else:
+#             return { 'error': "Video not found" }, 404
     
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+#     except Exception as e:
+#         print("Internal server error: {}".format(str(e)))
+#         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/videos/<video_id>', methods=['DELETE'])
 @auth_token_required
@@ -648,19 +651,18 @@ def extend_prompt():
     return {'prompt': list(PIPELINE_DICT['Text'].values())[0](content['prompt'] + ',', num_return_sequences=1)[0]['generated_text']}, 200
 
 @app.route('/interrogate', methods=['POST'])
-@challenge_token_required
-def interrogate():
+@auth_token_required
+def interrogate(current_user_id):
 
     content = json.loads(request.data)
     image = image_from_base_64(content['base_64']).convert('RGB')
     return {'prompt': list(PIPELINE_DICT['Interrogator'].values())[0].interrogate(image)}, 200
 
 @app.route('/upscale', methods=['POST'])
-@challenge_token_required
-def upscale():
+@auth_token_required
+def upscale(current_user_id):
 
     content = json.loads(request.data)
-    
     image = image_from_base_64(content['base_64']).convert('RGB')
     [h,w,c] = numpy.shape(image)
     scalar = float(384 / max(h, w, 384))
