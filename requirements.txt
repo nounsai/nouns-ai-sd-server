@@ -1,5 +1,6 @@
+accelerate==0.18.0
 clip-interrogator==0.3.5
-diffusers==0.12.1
+diffusers==0.14.0
 flask
 flask_cors
 ftfy
@@ -14,7 +15,7 @@ pyjwt==2.6.0
 realesrgan==0.2.5.0
 sendgrid==6.9.7
 sentencepiece==0.1.97
-stable_diffusion_videos==0.7.1
+torch==2.0.0
 triton==2.0.0.dev20221120
 transformers==4.26.1
-xformers==0.0.16
+xformers==0.0.18

@@ -30,7 +30,7 @@ PIPELINE_DICT = {}
 PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
-CORS(app, origins="http://localhost:3000", allow_headers="*")
+CORS(app)
 
 sg = SendGridAPIClient(config['sendgrid_api_key'])
 
