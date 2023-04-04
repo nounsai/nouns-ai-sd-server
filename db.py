@@ -89,11 +89,11 @@ def sanitize_string(string):
 #######################################################
 
 
-def create_user(email, password, metadata):
+def create_user(email, password, verify_key, metadata):
     
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO users (email, password, metadata) VALUES (%s, %s, %s) RETURNING id;", (email, password, json.dumps(metadata)))
+    cur.execute("INSERT INTO users (email, password, verify_key, metadata) VALUES (%s, %s, %s, %s) RETURNING id;", (email, password, verify_key, json.dumps(metadata)))
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
@@ -112,6 +112,27 @@ def fetch_user_for_email(email):
         return json.loads(users_df.to_json(orient="records"))[0]
     except Exception as e:
         return None
+
+
+def fetch_user_for_verify_key(verify_key):
+    conn = open_connection()
+    cur = create_cursor(conn)
+    sql = "SELECT * FROM users WHERE verify_key=%s AND is_verified=FALSE;"
+    users_df = pd.read_sql_query(sql, conn, params=[verify_key])
+    close_connection(conn)
+    try:
+        return json.loads(users_df.to_json(orient="records"))[0]
+    except Exception as e:
+        return None
+
+
+def verify_user_for_id(user_id):
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE users SET verify_key=NULL, is_verified=TRUE WHERE id=%s;", [user_id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
 
 
 def fetch_user(id):
