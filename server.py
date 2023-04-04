@@ -4,6 +4,7 @@ import sys
 import json
 import numpy
 import datetime
+import secrets
 
 from PIL import Image
 from io import BytesIO 
@@ -12,13 +13,17 @@ from flask_cors import CORS
 from passlib.hash import sha256_crypt
 from flask import Flask, jsonify, request
 
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, To
+
 from middleware import inference, setup_pipelines
 from utils import base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
-        create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user
+        create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
+        fetch_user_for_verify_key, verify_user_for_id
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -26,6 +31,8 @@ PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
 CORS(app, origins="http://localhost:3000", allow_headers="*")
+
+sg = SendGridAPIClient(config['sendgrid_api_key'])
 
 
 #######################################################
@@ -88,14 +95,17 @@ def api_login():
     auth = request.authorization
 
     if not auth or not auth.username or not auth.password:
-        return jsonify({'message': 'Could not verify!'}), 401
+        return jsonify({'message': 'Invalid request!'}), 401
 
     user = authenticate(auth.username, auth.password)
     if user is not None:
+        if not user['is_verified']:
+            return jsonify({'message': 'Email not verified!'}), 400
+
         token = jwt.encode({'id': user['id'], 'exp': datetime.datetime.utcnow() + datetime.timedelta(days=300)}, config['secret_key'], algorithm='HS256')
         return jsonify({'token': token, 'id': user['id']}), 200
 
-    return jsonify({'message': 'Could not verify!'}), 401
+    return jsonify({'message': 'Invalid credentials!'}), 401
 
 # route to create new user
 @app.route('/users', methods=['POST'])
@@ -113,12 +123,44 @@ def api_create_user():
         return jsonify({'message': 'User already exists!'}), 400
 
     try:
+        verify_key = secrets.token_hex(48)
         id = create_user(
             data['email'],
             sha256_crypt.encrypt(data['password']),
+            verify_key,
             data['metadata']
         )
+
+        # send verification email
+        message = Mail(
+            from_email='admin@nounsai.wtf',
+            to_emails=[To(data['email'])],
+            subject='NounsAI Playground Verification',
+            html_content=f'''
+<p>Hello! You are receiving this email because you registered an account at <a href="https://nounsai.wtf">nounsai.wtf</a>.
+To complete registration and verify your email, please click on this link: <a href="https://nounsai.wtf/verify/{verify_key}">Verify</a><br></p>
+<p>If you didn\'t register, you can safely ignore this email.</p>
+'''
+        )
+        response = sg.send(message)
+
         return { 'id': id }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+# route to verify key
+@app.route('/users/verify/<verify_key>', methods=['POST'])
+@challenge_token_required
+def api_verify_key(verify_key):
+    user = fetch_user_for_verify_key(verify_key)
+
+    if user is None:
+        return jsonify({'message': 'Invalid verification key'}), 400
+
+    try:
+        verify_user_for_id(user['id'])
+        return { 'id': user['id'] }, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
