@@ -251,6 +251,25 @@ def api_create_image_for_user(current_user_id, user_id):
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
+@app.route('/images', methods=['GET'])
+@challenge_token_required
+def api_fetch_images():
+
+    # /images?page=1&limit=20
+    page = request.args.get('page', default = 1, type = int)
+    limit = request.args.get('limit', default = 20, type = int)
+    offset = (page - 1) * limit
+
+    try:
+        images = fetch_images(
+            limit,
+            offset
+        )
+        return images, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
 @app.route('/users/<user_id>/images', methods=['GET'])
 @auth_token_required
 def api_fetch_images_for_user(current_user_id, user_id):

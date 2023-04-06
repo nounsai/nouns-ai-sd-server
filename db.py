@@ -181,11 +181,11 @@ def create_image(user_id, base_64, thumb_base_64, hash, metadata):
     return id
 
 
-def fetch_images():
+def fetch_images(limit, offset):
 
     conn = open_connection()
-    sql = "SELECT * FROM images ORDER BY id ASC;"
-    images_df = pd.read_sql_query(sql, conn)
+    sql = "SELECT * FROM images ORDER BY id DESC LIMIT %s OFFSET %s;"
+    images_df = pd.read_sql_query(sql, conn, params=[limit, offset])
     close_connection(conn)
     return json.loads(images_df.to_json(orient="records"))
 
