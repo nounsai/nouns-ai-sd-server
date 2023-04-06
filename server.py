@@ -16,7 +16,6 @@ from flask import Flask, jsonify, request
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-from middleware import inference, setup_pipelines
 from utils import base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
@@ -27,7 +26,9 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
-PIPELINE_DICT = setup_pipelines()
+if config['server_type'] == 'gpu':
+    from middleware import inference, setup_pipelines
+    PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
 CORS(app)
