@@ -3,6 +3,7 @@
 
 import io
 import os
+import cv2
 import sys
 import json
 import time
@@ -151,6 +152,31 @@ def preprocess(image):
     image = image[None].transpose(0, 3, 1, 2)
     image = torch.from_numpy(image)
     return 2.0 * image - 1.0
+
+
+def adjust_thickness(image, thickness):
+
+    image = np.array(image)
+    if not (-5 <= thickness <= 5):
+        raise ValueError("Thickness value should be between -5 and 5")
+
+    low_threshold = 100
+    high_threshold = 200
+
+    if thickness < 0:
+        ksize = 2 * abs(thickness) + 1 # e.g., 3 for thickness=-1, 5 for thickness=-2, etc.
+        image = cv2.GaussianBlur(image, (ksize, ksize), 0)
+
+    image = cv2.Canny(image, low_threshold, high_threshold)
+
+    if thickness > 0:
+        kernel_size = 1 + 2 * thickness  # e.g., 3 for thickness=1, 5 for thickness=2, etc.
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+        image = cv2.dilate(image, kernel, iterations=1)
+
+    image = image[:, :, None]
+    image = np.concatenate([image, image, image], axis=2)
+    return Image.fromarray(image)
 
 
 def serve_pil_image(pil_image):

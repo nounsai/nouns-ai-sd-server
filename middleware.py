@@ -19,7 +19,7 @@ from moviepy.editor import AudioFileClip, VideoFileClip, concatenate_videoclips
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline, StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
 
 from db import fetch_image, fetch_user, update_video_for_user
-from utils import convert_mp4_to_mov, dropbox_get_link, dropbox_upload_file, fetch_env_config, get_device, image_from_base_64, preprocess, refresh_dir, \
+from utils import convert_mp4_to_mov, dropbox_get_link, dropbox_upload_file, fetch_env_config, get_device, image_from_base_64, preprocess, adjust_thickness, refresh_dir, \
                  BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UPSCALE_MODELS
 
 config = fetch_env_config()
@@ -134,20 +134,11 @@ def pix_to_pix(p2p_pipeline, prompt, generator, n_images, steps, scale, img):
     return images
 
 
-def control_net(control_net_pipeline, prompt, generator, negative_prompt, steps, img):
+def control_net(control_net_pipeline, prompt, generator, negative_prompt, steps, thickness, img):
 
-    img = numpy.array(img)
-
-    low_threshold = 100
-    high_threshold = 200
-
-    img = cv2.Canny(img, low_threshold, high_threshold)
-    img = img[:, :, None]
-    img = numpy.concatenate([img, img, img], axis=2)
-    canny_img = Image.fromarray(img)
-    
     translator = Translator()
-
+    
+    canny_img = adjust_thickness(img, thickness)
     images = control_net_pipeline(
         prompt,
         canny_img,
@@ -278,7 +269,7 @@ def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=
                 return pix_to_pix(pipeline, prompt, generator, n_images, steps, scale, img)
         
             elif inf_mode == 'ControlNet':
-                return control_net(pipeline, prompt, generator, negative_prompt, steps, img)
+                return control_net(pipeline, prompt, generator, negative_prompt, steps, strength, img)
         
     except Exception as e:
         print('Internal server error with inferencing {}: {}'.format(inf_mode, str(e)))
