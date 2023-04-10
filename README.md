@@ -87,6 +87,7 @@ CREATE TABLE videos (
 ```
 
 ## Links
+```
 CREATE TABLE links (
     id INT GENERATED ALWAYS AS IDENTITY,
     user_id INT NOT NULL,
@@ -95,6 +96,7 @@ CREATE TABLE links (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+```
 
 ## Models
 

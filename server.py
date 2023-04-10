@@ -329,8 +329,6 @@ def api_update_image(current_user_id, user_id, image_id):
         update_image_for_user(
             image_id,
             current_user_id,
-            data['base_64'],
-            data['hash'],
             data['metadata']
         )
         return { 'status': 'success' }, 200
