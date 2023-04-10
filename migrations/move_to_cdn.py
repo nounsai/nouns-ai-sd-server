@@ -34,21 +34,27 @@ for image in images:
 
 print('Uploaded images and saved UUIDs.')
 
-if fail_count == 0:
-    print('Deleting base64 images from database...')
-    cur.execute('ALTER TABLE images DROP COLUMN IF EXISTS base_64;')
-    cur.execute('ALTER TABLE images DROP COLUMN IF EXISTS thumb_base_64;')
-    conn.commit()
+delete_cols = input(f'Would you like to delete the `base_64` and `thumb_base_64` columns? (y/n) ')
 
-    print('Migration complete!')
-else:
-    i = input(f'{fail_count} image(s) failed to upload to CDN. Are you sure you want to continue? (y/n)')
-    if i == 'y':
+if delete_cols == 'y':
+    if fail_count == 0:
+        print('Deleting base64 images from database...')
         cur.execute('ALTER TABLE images DROP COLUMN IF EXISTS base_64;')
         cur.execute('ALTER TABLE images DROP COLUMN IF EXISTS thumb_base_64;')
         conn.commit()
 
         print('Migration complete!')
     else:
-        print('Not deleting base 64 columns from database. Migration partially complete, you may need to delete the '
-              'columns yourself after ensuring that all images have been uploaded.')
+        i = input(f'{fail_count} image(s) failed to upload to CDN. Are you sure you want to continue? (y/n) ')
+        if i == 'y':
+            cur.execute('ALTER TABLE images DROP COLUMN IF EXISTS base_64;')
+            cur.execute('ALTER TABLE images DROP COLUMN IF EXISTS thumb_base_64;')
+            conn.commit()
+
+            print('Migration complete!')
+        else:
+            print('Not deleting base 64 columns from database. Migration partially complete, you may need to delete the'
+                  'columns yourself after ensuring that all images have been uploaded.')
+else:
+    print('Not deleting base 64 columns from database. Migration partially complete, you may need to delete the '
+          'columns yourself after ensuring that all images have been uploaded.')

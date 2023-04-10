@@ -15,6 +15,9 @@ from configparser import ConfigParser
 
 warnings.simplefilter(action='ignore', category=UserWarning)
 
+config = json.load('config.json')
+
+SAVE_IMAGES_TO_DATABASE = config['save_image_to_database']
 LOGGING = False
 
 
@@ -178,7 +181,15 @@ def create_image(user_id, base_64, thumb_base_64, hash, metadata):
     # save to database
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO images (user_id, hash, metadata, cdn_id) VALUES (%s, %s, %s, %s, %s) RETURNING id;", (user_id, hash, json.dumps(metadata), image_cdn_uuid))
+
+    sql = "INSERT INTO images (user_id, hash, metadata, cdn_id) VALUES (%s, %s, %s, %s, %s) RETURNING id;"
+    fields = [user_id, hash, json.dumps(metadata), image_cdn_uuid]
+
+    if SAVE_IMAGES_TO_DATABASE:
+        sql = "INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata, cdn_id) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id;"
+        fields = [user_id, json.dumps(base_64), json.dumps(thumb_base_64), hash, json.dumps(metadata), image_cdn_uuid]
+
+    cur.execute(sql, fields)
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
