@@ -718,7 +718,7 @@ def interrogate(current_user_id):
 
     content = json.loads(request.data)
     image = image_from_base_64(content['base_64']).convert('RGB')
-    return {'prompt': list(PIPELINE_DICT['Interrogator'].values())[0].interrogate(image)}, 200
+    return {'prompt': list(PIPELINE_DICT['Interrogator'].values())[0].interrogate_fast(image)}, 200
 
 @app.route('/upscale', methods=['POST'])
 @auth_token_required
