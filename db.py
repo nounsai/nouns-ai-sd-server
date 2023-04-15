@@ -3,6 +3,7 @@
 
 import os
 import json
+import base64
 import psycopg2
 import warnings
 import pandas as pd
@@ -14,8 +15,9 @@ from cdn import upload_image_to_cdn, delete_image_from_cdn
 from configparser import ConfigParser
 
 warnings.simplefilter(action='ignore', category=UserWarning)
+from utils import fetch_env_config
 
-config = json.load('config.json')
+config = fetch_env_config()
 
 SAVE_IMAGES_TO_DATABASE = config['save_image_to_database']
 LOGGING = False
@@ -195,8 +197,7 @@ def create_image(user_id, base_64, thumb_base_64, hash, metadata):
     conn.commit()
     close_connection(conn)
 
-    # upload to CDN
-    is_success = upload_image_to_cdn(user_id, image_cdn_uuid, base_64, thumb_base_64)
+    is_success = upload_image_to_cdn(user_id, image_cdn_uuid, base64.b64decode(base_64[23:]), base64.b64decode(thumb_base_64[23:]))
     if not is_success:
         print(f'Failed to upload image with ID {id} to CDN')
 

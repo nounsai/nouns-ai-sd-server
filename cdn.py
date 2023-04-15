@@ -34,20 +34,24 @@ def upload_image_to_cdn(user_id, image_id, base_64, thumbnail):
 
     # upload full image
     full_response = requests.put(
-        f'https://{STORAGE_LOCATION_ID}.storage.bunnycdn.com/{STORAGE_ZONE_NAME}/{user_id}/{image_id}-full.png'
-        , data=base_64, headers=headers)
+        f'https://storage.bunnycdn.com/{STORAGE_ZONE_NAME}/{user_id}/{image_id}-full.png',
+        data=base_64,
+        headers=headers
+    )
 
     if full_response.status_code != 201:
         return False
 
     # upload thumbnail
     thumb_response = requests.put(
-        f'https://{STORAGE_LOCATION_ID}.storage.bunnycdn.com/{STORAGE_ZONE_NAME}/{user_id}/{image_id}-thumbnail.png',
+        f'https://storage.bunnycdn.com/{STORAGE_ZONE_NAME}/{user_id}/{image_id}-thumbnail.png', 
         data=thumbnail,
         headers=headers
     )
 
     return thumb_response.status_code == 201
+
+
 
 
 # deletes image from CDN, returns true if successful or false if unsuccessful
