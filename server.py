@@ -245,7 +245,10 @@ def api_create_image_for_user(current_user_id, user_id):
             data['base_64'],
             thumbnail,
             data['hash'],
-            data['metadata']
+            data['metadata'],
+            data['is_public'],
+            data['is_liked'],
+            data['parent_id']
         )
         return { 'id': id, 'thumbnail': thumbnail }, 200
     except Exception as e:
@@ -329,7 +332,9 @@ def api_update_image(current_user_id, user_id, image_id):
         update_image_for_user(
             image_id,
             current_user_id,
-            data['metadata']
+            data['metadata'],
+            data['is_public'],
+            data['is_liked']
         )
         return { 'status': 'success' }, 200
     except Exception as e:

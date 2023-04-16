@@ -177,19 +177,15 @@ def delete_user(id):
 ########################################################
 
 
-def create_image(user_id, base_64, thumb_base_64, hash, metadata):
+def create_image(user_id, base_64, thumb_base_64, hash, metadata, is_public=False, is_liked=False, parent_id=0):
     image_cdn_uuid = str(uuid.uuid4())
 
     # save to database
     conn = open_connection()
     cur = create_cursor(conn)
-
-    sql = "INSERT INTO images (user_id, hash, metadata, cdn_id) VALUES (%s, %s, %s, %s, %s) RETURNING id;"
-    fields = [user_id, hash, json.dumps(metadata), image_cdn_uuid]
-
-    if SAVE_IMAGES_TO_DATABASE:
-        sql = "INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata, cdn_id) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id;"
-        fields = [user_id, json.dumps(base_64), json.dumps(thumb_base_64), hash, json.dumps(metadata), image_cdn_uuid]
+    
+    sql = "INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata, cdn_id, is_public, is_liked, parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;"
+    fields = [user_id, json.dumps(base_64), json.dumps(thumb_base_64), hash, json.dumps(metadata), image_cdn_uuid, is_public, is_liked, parent_id]
 
     cur.execute(sql, fields)
     id = cur.fetchone()[0]
@@ -207,7 +203,7 @@ def create_image(user_id, base_64, thumb_base_64, hash, metadata):
 def fetch_images(limit, offset):
 
     conn = open_connection()
-    sql = "SELECT * FROM images ORDER BY id DESC LIMIT %s OFFSET %s;"
+    sql = "SELECT * FROM images where is_public=True ORDER BY id DESC LIMIT %s OFFSET %s;"
     images_df = pd.read_sql_query(sql, conn, params=[limit, offset])
     close_connection(conn)
     return json.loads(images_df.to_json(orient="records"))
@@ -255,11 +251,11 @@ def fetch_image_for_user(id, user_id):
         return None
 
 
-def update_image_for_user(id, user_id, metadata):
+def update_image_for_user(id, user_id, metadata, is_public, is_liked):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("UPDATE images SET metadata=%s WHERE id=%s and user_id=%s;", [json.dumps(metadata), id, user_id])
+    cur.execute("UPDATE images SET metadata=%s, is_public=%s, is_liked=%s WHERE id=%s and user_id=%s;", [json.dumps(metadata), is_public, is_liked, id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
