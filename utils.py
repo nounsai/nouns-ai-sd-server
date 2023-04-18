@@ -204,3 +204,10 @@ def base_64_thumbnail_for_base_64_image(base64_string):
     tmp_image = image.resize((w, h), resample=Image.LANCZOS)
     tmp_image.save(buffer, format="JPEG")
     return 'data:image/jpeg;base64,' + str(base64.b64encode(buffer.getvalue()))[2:-1]
+
+
+def base_64_from_image(image):
+    
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG")
+    return 'data:image/jpeg;base64,' + str(base64.b64encode(buffer.getvalue()))[2:-1]

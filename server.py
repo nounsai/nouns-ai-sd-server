@@ -3,6 +3,7 @@ import jwt
 import sys
 import json
 import numpy
+import hashlib
 import datetime
 import secrets
 
@@ -16,7 +17,7 @@ from flask import Flask, jsonify, request
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-from utils import base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
+from utils import base_64_from_image, base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
@@ -68,6 +69,28 @@ def auth_token_required(f):
             current_user_id = str(data['id'])
         except:
             return jsonify({'message': 'Token is invalid!'}), 401
+
+        return f(current_user_id, *args, **kwargs)
+
+    return decorated
+
+# decorator to get user id from token
+def prepend_user_id(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+
+        if 'Authorization' in request.headers:
+            token = request.headers['Authorization']
+
+        if not token:
+            current_user_id = str(67)
+        else:
+            try:
+                data = jwt.decode(token, config['secret_key'], algorithms=["HS256"])
+                current_user_id = str(data['id'])
+            except:
+                current_user_id = str(67)
 
         return f(current_user_id, *args, **kwargs)
 
@@ -210,7 +233,8 @@ def api_update_user(current_user_id, user_id):
 
 @app.route('/images', methods=['POST'])
 @challenge_token_required
-def api_create_image():
+@prepend_user_id
+def api_create_image(current_user_id):
 
     data = json.loads(request.data)
 
@@ -226,7 +250,20 @@ def api_create_image():
         elif data['inference_mode'] == 'ControlNet':
             images = inference(PIPELINE_DICT['ControlNet'][data['model_id']], 'ControlNet', data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), img=image, strength=int(data['strength']))
 
-    return serve_pil_image(images[0])
+    base_64 = base_64_from_image(images[0])
+    thumbnail = base_64_thumbnail_for_base_64_image(base_64)
+    id = create_image(
+        current_user_id,
+        base_64,
+        thumbnail,
+        hashlib.sha256(base_64.encode('utf-8')).hexdigest(),
+        data,
+        False,
+        False,
+        -1 if 'parent_id' not in data['parent_id'] else data['parent_id']
+    )
+
+    return { 'image': serve_pil_image(images[0]), 'id': id }, 200
 
 
 @app.route('/users/<user_id>/images', methods=['POST'])
