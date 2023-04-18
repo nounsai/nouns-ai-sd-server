@@ -12,7 +12,7 @@ from io import BytesIO
 from functools import wraps
 from flask_cors import CORS
 from passlib.hash import sha256_crypt
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
@@ -32,7 +32,7 @@ if config['server_type'] == 'gpu':
     PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, expose_headers=['X-Image-Id'])
 
 sg = SendGridAPIClient(config['sendgrid_api_key'])
 
@@ -260,10 +260,12 @@ def api_create_image(current_user_id):
         data,
         False,
         False,
-        -1 if 'parent_id' not in data['parent_id'] else data['parent_id']
+        -1 if 'parent_id' not in data else data['parent_id']
     )
 
-    return { 'image': serve_pil_image(images[0]), 'id': id }, 200
+    response = make_response(serve_pil_image(images[0]))
+    response.headers['X-Image-Id'] = id
+    return response
 
 
 @app.route('/users/<user_id>/images', methods=['POST'])
