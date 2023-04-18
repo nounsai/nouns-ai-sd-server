@@ -19,7 +19,7 @@ from sendgrid.helpers.mail import Mail, To
 
 from utils import base_64_from_image, base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
-        create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
+        create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
@@ -238,7 +238,9 @@ def api_create_image(current_user_id):
 
     data = json.loads(request.data)
 
+    parent_id = -1 if 'parent_id' not in data else data['parent_id']
     images = []
+
     if data['inference_mode'] == 'Text to Image':
         images = inference(PIPELINE_DICT['Text to Image'][data['model_id']], 'Text to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'])
     else:
@@ -249,7 +251,15 @@ def api_create_image(current_user_id):
             images = inference(PIPELINE_DICT['Pix to Pix'][data['model_id']], 'Pix to Pix', data['prompt'], n_images=int(data['samples']), steps=int(data['steps']), seed=int(data['seed']), img=image)
         elif data['inference_mode'] == 'ControlNet':
             images = inference(PIPELINE_DICT['ControlNet'][data['model_id']], 'ControlNet', data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), img=image, strength=int(data['strength']))
-
+        
+        if parent_id == -1:
+            images_with_hash = fetch_images_with_hash(hashlib.sha256(data['base_64'].encode('utf-8')).hexdigest())
+            images_for_user_with_hash = [i for i in images_with_hash if i.user_id == current_user_id]
+            if len(images_for_user_with_hash) > 0:
+                parent_id = images_for_user_with_hash[0].id
+            elif len(images_with_hash) > 0:
+                parent_id = images_with_hash[0].id
+    
     base_64 = base_64_from_image(images[0])
     thumbnail = base_64_thumbnail_for_base_64_image(base_64)
     id = create_image(
@@ -260,7 +270,7 @@ def api_create_image(current_user_id):
         data,
         False,
         False,
-        -1 if 'parent_id' not in data else data['parent_id']
+        parent_id
     )
 
     response = make_response(serve_pil_image(images[0]))

@@ -184,6 +184,10 @@ def create_image(user_id, base_64, thumb_base_64, hash, metadata, is_public=Fals
     conn = open_connection()
     cur = create_cursor(conn)
     
+    user_images_with_hash = fetch_images_for_user_with_hash(user_id, hash)
+    if len(user_images_with_hash) > 0:
+        return user_images_with_hash[0]['id']
+    
     sql = "INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata, cdn_id, is_public, is_liked, parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;"
     fields = [user_id, json.dumps(base_64), json.dumps(thumb_base_64), hash, json.dumps(metadata), image_cdn_uuid, is_public, is_liked, parent_id]
 
@@ -219,6 +223,24 @@ def fetch_image(id):
         return json.loads(images_df.to_json(orient="records"))[0]
     except Exception as e:
         return None
+
+
+def fetch_images_with_hash(hash):
+
+    conn = open_connection()
+    sql = "SELECT * FROM images where hash=%s;"
+    images_df = pd.read_sql_query(sql, conn, params=[hash])
+    close_connection(conn)
+    return json.loads(images_df.to_json(orient="records"))
+
+
+def fetch_images_for_user_with_hash(user_id, hash):
+
+    conn = open_connection()
+    sql = "SELECT * FROM images where user_id=%s and hash=%s;"
+    images_df = pd.read_sql_query(sql, conn, params=[hash])
+    close_connection(conn)
+    return json.loads(images_df.to_json(orient="records"))
 
 
 def fetch_images_for_user(user_id, limit, offset):
