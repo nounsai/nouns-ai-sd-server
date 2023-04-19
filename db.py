@@ -6,6 +6,7 @@ import json
 import base64
 import psycopg2
 import warnings
+import threading
 import pandas as pd
 import psycopg2.extras
 import uuid
@@ -197,9 +198,9 @@ def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, 
     conn.commit()
     close_connection(conn)
 
-    is_success = upload_image_to_cdn(user_id, image_cdn_uuid, image_byte_data, thumbnail_byte_data)
-    if not is_success:
-        print(f'Failed to upload image with ID {id} to CDN')
+    # Start a new thread for the slow save operation
+    save_thread = threading.Thread(target=upload_image_to_cdn, args=(user_id, image_cdn_uuid, image_byte_data, thumbnail_byte_data))
+    save_thread.start()
 
     return id
 

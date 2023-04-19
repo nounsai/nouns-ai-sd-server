@@ -39,9 +39,6 @@ def upload_image_to_cdn(user_id, image_id, base_64, thumbnail):
         headers=headers
     )
 
-    if full_response.status_code != 201:
-        return False
-
     # upload thumbnail
     thumb_response = requests.put(
         f'https://storage.bunnycdn.com/{STORAGE_ZONE_NAME}/{user_id}/{image_id}-thumbnail.png', 
@@ -49,9 +46,8 @@ def upload_image_to_cdn(user_id, image_id, base_64, thumbnail):
         headers=headers
     )
 
-    return thumb_response.status_code == 201
-
-
+    if full_response.status_code != 201 or thumb_response.status_code == 201:
+        print(f'Failed to upload image with ID {image_id} to CDN')
 
 
 # deletes image from CDN, returns true if successful or false if unsuccessful
