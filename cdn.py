@@ -46,7 +46,7 @@ def upload_image_to_cdn(user_id, image_id, base_64, thumbnail):
         headers=headers
     )
 
-    if full_response.status_code != 201 or thumb_response.status_code == 201:
+    if full_response.status_code != 201 or thumb_response.status_code != 201:
         print(f'Failed to upload image with ID {image_id} to CDN')
 
 

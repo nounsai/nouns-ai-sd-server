@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8; py-indent-offset:4 -*-
 
+import os
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
+
 import sys
 import cv2
 import time
@@ -23,6 +26,8 @@ from utils import convert_mp4_to_mov, dropbox_get_link, dropbox_upload_file, fet
                  BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UPSCALE_MODELS
 
 config = fetch_env_config()
+torch.backends.cudnn.benchmark = False
+torch.use_deterministic_algorithms(True)
 
 #######################################################
 ######################## SETUP ########################
