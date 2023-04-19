@@ -3,15 +3,24 @@
 
 import os
 import json
+import base64
 import psycopg2
 import warnings
+import threading
 import pandas as pd
 import psycopg2.extras
+import uuid
+
+from cdn import upload_image_to_cdn, delete_image_from_cdn
 
 from configparser import ConfigParser
 
 warnings.simplefilter(action='ignore', category=UserWarning)
+from utils import fetch_env_config
 
+config = fetch_env_config()
+
+SAVE_IMAGES_TO_DATABASE = config['save_image_to_database']
 LOGGING = False
 
 
@@ -169,22 +178,37 @@ def delete_user(id):
 ########################################################
 
 
-def create_image(user_id, base_64, thumb_base_64, hash, metadata):
-    
+def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, is_public=False, is_liked=False, parent_id=0):
+    image_cdn_uuid = str(uuid.uuid4())
+
+    # save to database
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata) VALUES (%s, %s, %s, %s, %s) RETURNING id;", (user_id, json.dumps(base_64), json.dumps(thumb_base_64), hash, json.dumps(metadata)))
+    
+    user_images_with_hash = fetch_images_for_user_with_hash(user_id, hash)
+    if len(user_images_with_hash) > 0:
+        return user_images_with_hash[0]['id']
+    
+    sql = "INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata, cdn_id, is_public, is_liked, parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;"
+    fields = [user_id, '0', '0', hash, json.dumps(metadata), image_cdn_uuid, is_public, is_liked, parent_id]
+
+    cur.execute(sql, fields)
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+
+    # Start a new thread for the slow save operation
+    save_thread = threading.Thread(target=upload_image_to_cdn, args=(user_id, image_cdn_uuid, image_byte_data, thumbnail_byte_data))
+    save_thread.start()
+
     return id
 
 
 def fetch_images(limit, offset):
 
     conn = open_connection()
-    sql = "SELECT * FROM images ORDER BY id DESC LIMIT %s OFFSET %s;"
+    sql = "SELECT * FROM images where is_public=True ORDER BY id DESC LIMIT %s OFFSET %s;"
     images_df = pd.read_sql_query(sql, conn, params=[limit, offset])
     close_connection(conn)
     return json.loads(images_df.to_json(orient="records"))
@@ -200,6 +224,24 @@ def fetch_image(id):
         return json.loads(images_df.to_json(orient="records"))[0]
     except Exception as e:
         return None
+
+
+def fetch_images_with_hash(hash):
+
+    conn = open_connection()
+    sql = "SELECT * FROM images where hash=%s;"
+    images_df = pd.read_sql_query(sql, conn, params=[hash])
+    close_connection(conn)
+    return json.loads(images_df.to_json(orient="records"))
+
+
+def fetch_images_for_user_with_hash(user_id, hash):
+
+    conn = open_connection()
+    sql = "SELECT * FROM images where user_id=%s and hash=%s;"
+    images_df = pd.read_sql_query(sql, conn, params=[user_id, hash])
+    close_connection(conn)
+    return json.loads(images_df.to_json(orient="records"))
 
 
 def fetch_images_for_user(user_id, limit, offset):
@@ -232,11 +274,11 @@ def fetch_image_for_user(id, user_id):
         return None
 
 
-def update_image_for_user(id, user_id, base_64, thumb_base_64, hash, metadata):
+def update_image_for_user(id, user_id, metadata, is_public, is_liked):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("UPDATE images SET base_64=%s, thumb_base_64=%s, hash=%s, metadata=%s WHERE id=%s and user_id=%s;", [json.dumps(base_64), json.dumps(thumb_base_64), hash, json.dumps(metadata), id, user_id])
+    cur.execute("UPDATE images SET metadata=%s, is_public=%s, is_liked=%s WHERE id=%s and user_id=%s;", [json.dumps(metadata), is_public, is_liked, id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)

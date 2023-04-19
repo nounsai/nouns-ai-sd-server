@@ -13,6 +13,7 @@ passlib==1.7.4
 python-dotenv
 pyjwt==2.6.0
 realesrgan==0.2.5.0
+requests
 sendgrid==6.9.7
 sentencepiece==0.1.97
 torch==2.0.0

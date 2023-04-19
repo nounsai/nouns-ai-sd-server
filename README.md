@@ -49,6 +49,10 @@ CREATE TABLE images (
     thumb_base_64 TEXT NOT NULL,
     hash VARCHAR (256) NOT NULL,
     metadata JSON NOT NULL,
+    cdn_id VARCHAR (36),
+    is_public BOOLEAN DEFAULT FALSE NOT NULL,
+    is_liked BOOLEAN DEFAULT FALSE NOT NULL,
+    parent_id INT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     PRIMARY KEY(id),
@@ -87,6 +91,7 @@ CREATE TABLE videos (
 ```
 
 ## Links
+```
 CREATE TABLE links (
     id INT GENERATED ALWAYS AS IDENTITY,
     user_id INT NOT NULL,
@@ -95,6 +100,7 @@ CREATE TABLE links (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+```
 
 ## Models
 

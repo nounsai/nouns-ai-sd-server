@@ -3,6 +3,7 @@ import jwt
 import sys
 import json
 import numpy
+import hashlib
 import datetime
 import secrets
 
@@ -11,14 +12,14 @@ from io import BytesIO
 from functools import wraps
 from flask_cors import CORS
 from passlib.hash import sha256_crypt
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-from utils import base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
+from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
-        create_image, fetch_images, fetch_images_for_user, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
+        create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
@@ -31,7 +32,7 @@ if config['server_type'] == 'gpu':
     PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, expose_headers=['X-Image-Id'])
 
 sg = SendGridAPIClient(config['sendgrid_api_key'])
 
@@ -68,6 +69,28 @@ def auth_token_required(f):
             current_user_id = str(data['id'])
         except:
             return jsonify({'message': 'Token is invalid!'}), 401
+
+        return f(current_user_id, *args, **kwargs)
+
+    return decorated
+
+# decorator to get user id from token
+def prepend_user_id(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+
+        if 'Authorization' in request.headers:
+            token = request.headers['Authorization']
+
+        if not token:
+            current_user_id = str(67)
+        else:
+            try:
+                data = jwt.decode(token, config['secret_key'], algorithms=["HS256"])
+                current_user_id = str(data['id'])
+            except:
+                current_user_id = str(67)
 
         return f(current_user_id, *args, **kwargs)
 
@@ -210,11 +233,14 @@ def api_update_user(current_user_id, user_id):
 
 @app.route('/images', methods=['POST'])
 @challenge_token_required
-def api_create_image():
+@prepend_user_id
+def api_create_image(current_user_id):
 
     data = json.loads(request.data)
 
+    parent_id = -1 if 'parent_id' not in data else data['parent_id']
     images = []
+
     if data['inference_mode'] == 'Text to Image':
         images = inference(PIPELINE_DICT['Text to Image'][data['model_id']], 'Text to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'])
     else:
@@ -225,8 +251,31 @@ def api_create_image():
             images = inference(PIPELINE_DICT['Pix to Pix'][data['model_id']], 'Pix to Pix', data['prompt'], n_images=int(data['samples']), steps=int(data['steps']), seed=int(data['seed']), img=image)
         elif data['inference_mode'] == 'ControlNet':
             images = inference(PIPELINE_DICT['ControlNet'][data['model_id']], 'ControlNet', data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), img=image, strength=int(data['strength']))
+        
+        if parent_id == -1:
+            images_with_hash = fetch_images_with_hash(hashlib.sha256(data['base_64'].encode('utf-8')).hexdigest())
+            images_for_user_with_hash = [i for i in images_with_hash if i.user_id == current_user_id]
+            if len(images_for_user_with_hash) > 0:
+                parent_id = images_for_user_with_hash[0].id
+            elif len(images_with_hash) > 0:
+                parent_id = images_with_hash[0].id
+    
+    image_byte_data = bytes_from_image(images[0])
+    thumbnail_byte_data = thumbnail_bytes_for_image(images[0])
+    id = create_image(
+        current_user_id,
+        image_byte_data,
+        thumbnail_byte_data,
+        (hashlib.sha256(image_byte_data)).hexdigest(),
+        data,
+        False,
+        False,
+        parent_id
+    )
 
-    return serve_pil_image(images[0])
+    response = make_response(serve_pil_image(images[0]))
+    response.headers['X-Image-Id'] = id
+    return response
 
 
 @app.route('/users/<user_id>/images', methods=['POST'])
@@ -245,7 +294,10 @@ def api_create_image_for_user(current_user_id, user_id):
             data['base_64'],
             thumbnail,
             data['hash'],
-            data['metadata']
+            data['metadata'],
+            data['is_public'],
+            data['is_liked'],
+            data['parent_id']
         )
         return { 'id': id, 'thumbnail': thumbnail }, 200
     except Exception as e:
@@ -329,9 +381,9 @@ def api_update_image(current_user_id, user_id, image_id):
         update_image_for_user(
             image_id,
             current_user_id,
-            data['base_64'],
-            data['hash'],
-            data['metadata']
+            data['metadata'],
+            data['is_public'],
+            data['is_liked']
         )
         return { 'status': 'success' }, 200
     except Exception as e:
