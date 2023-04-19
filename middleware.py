@@ -17,7 +17,6 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 from clip_interrogator import Config, Interrogator
 from transformers.generation_utils import GenerationMixin
-from xformers.ops import MemoryEfficientAttentionFlashAttentionOp
 from moviepy.editor import AudioFileClip, VideoFileClip, concatenate_videoclips
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline, StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
 
@@ -61,7 +60,6 @@ def setup_pipelines():
             PIPELINE_DICT['ControlNet'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['ControlNet'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet'][base_model].scheduler.config)
             PIPELINE_DICT['ControlNet'][base_model].enable_model_cpu_offload()
-            PIPELINE_DICT['ControlNet'][base_model].enable_xformers_memory_efficient_attention()
         for instructable_model in INSTRUCTABLE_MODELS:
             PIPELINE_DICT['Pix to Pix'][instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['Pix to Pix'][instructable_model] = PIPELINE_DICT['Pix to Pix'][instructable_model].to('cuda')
@@ -83,8 +81,6 @@ def setup_pipelines():
     for upscale_model in UPSCALE_MODELS:
         PIPELINE_DICT['Upscale'][upscale_model] = StableDiffusionUpscalePipeline.from_pretrained(upscale_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
         PIPELINE_DICT['Upscale'][upscale_model] = PIPELINE_DICT['Upscale'][upscale_model].to('cuda')
-        PIPELINE_DICT['Upscale'][upscale_model].enable_xformers_memory_efficient_attention(attention_op=MemoryEfficientAttentionFlashAttentionOp)
-        PIPELINE_DICT['Upscale'][upscale_model].vae.enable_xformers_memory_efficient_attention(attention_op=None)
 
     return PIPELINE_DICT
 
