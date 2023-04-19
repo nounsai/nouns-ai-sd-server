@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, make_response
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-from utils import base_64_from_image, base_64_thumbnail_for_base_64_image, fetch_env_config, image_from_base_64, serve_pil_image
+from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
@@ -260,13 +260,13 @@ def api_create_image(current_user_id):
             elif len(images_with_hash) > 0:
                 parent_id = images_with_hash[0].id
     
-    base_64 = base_64_from_image(images[0])
-    thumbnail = base_64_thumbnail_for_base_64_image(base_64)
+    image_byte_data = bytes_from_image(images[0])
+    thumbnail_byte_data = thumbnail_bytes_for_image(images[0])
     id = create_image(
         current_user_id,
-        base_64,
-        thumbnail,
-        hashlib.sha256(base_64.encode('utf-8')).hexdigest(),
+        image_byte_data,
+        thumbnail_byte_data,
+        (hashlib.sha256(image_byte_data)).hexdigest(),
         data,
         False,
         False,

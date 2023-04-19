@@ -195,19 +195,19 @@ def image_from_base_64(base64_string):
     return Image.open(BytesIO(base64.b64decode(image_data)))
 
 
-def base_64_thumbnail_for_base_64_image(base64_string):
+def thumbnail_bytes_for_image(image):
     
     buffer = io.BytesIO()
-    image = image_from_base_64(base64_string)
     [h,w,c] = np.shape(image)
     w, h = map(lambda x: int(float(x / max(w, h)) * 100), (w, h))
     tmp_image = image.resize((w, h), resample=Image.LANCZOS)
     tmp_image.save(buffer, format="JPEG")
-    return 'data:image/jpeg;base64,' + str(base64.b64encode(buffer.getvalue()))[2:-1]
+    return buffer.getvalue()
 
 
-def base_64_from_image(image):
+def bytes_from_image(image):
     
     buffer = io.BytesIO()
-    image.save(buffer, format="JPEG")
-    return 'data:image/jpeg;base64,' + str(base64.b64encode(buffer.getvalue()))[2:-1]
+    image.save(buffer, format='JPEG')
+    return buffer.getvalue()
+

@@ -177,7 +177,7 @@ def delete_user(id):
 ########################################################
 
 
-def create_image(user_id, base_64, thumb_base_64, hash, metadata, is_public=False, is_liked=False, parent_id=0):
+def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, is_public=False, is_liked=False, parent_id=0):
     image_cdn_uuid = str(uuid.uuid4())
 
     # save to database
@@ -189,7 +189,7 @@ def create_image(user_id, base_64, thumb_base_64, hash, metadata, is_public=Fals
         return user_images_with_hash[0]['id']
     
     sql = "INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata, cdn_id, is_public, is_liked, parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;"
-    fields = [user_id, json.dumps(base_64), json.dumps(thumb_base_64), hash, json.dumps(metadata), image_cdn_uuid, is_public, is_liked, parent_id]
+    fields = [user_id, '0', '0', hash, json.dumps(metadata), image_cdn_uuid, is_public, is_liked, parent_id]
 
     cur.execute(sql, fields)
     id = cur.fetchone()[0]
@@ -197,7 +197,7 @@ def create_image(user_id, base_64, thumb_base_64, hash, metadata, is_public=Fals
     conn.commit()
     close_connection(conn)
 
-    is_success = upload_image_to_cdn(user_id, image_cdn_uuid, base64.b64decode(base_64[23:]), base64.b64decode(thumb_base_64[23:]))
+    is_success = upload_image_to_cdn(user_id, image_cdn_uuid, image_byte_data, thumbnail_byte_data)
     if not is_success:
         print(f'Failed to upload image with ID {id} to CDN')
 
@@ -238,7 +238,7 @@ def fetch_images_for_user_with_hash(user_id, hash):
 
     conn = open_connection()
     sql = "SELECT * FROM images where user_id=%s and hash=%s;"
-    images_df = pd.read_sql_query(sql, conn, params=[hash])
+    images_df = pd.read_sql_query(sql, conn, params=[user_id, hash])
     close_connection(conn)
     return json.loads(images_df.to_json(orient="records"))
 
