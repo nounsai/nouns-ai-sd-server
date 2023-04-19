@@ -273,6 +273,7 @@ def api_create_image(current_user_id):
         parent_id
     )
 
+    # TODO: Make this return image metadata.
     response = make_response(serve_pil_image(images[0]))
     response.headers['X-Image-Id'] = id
     return response
@@ -381,9 +382,8 @@ def api_update_image(current_user_id, user_id, image_id):
         update_image_for_user(
             image_id,
             current_user_id,
-            data['metadata'],
-            data['is_public'],
-            data['is_liked']
+            data['is_public'] if data['is_public'] is not None else None,
+            data['is_liked'] if data['is_liked'] is not None else None
         )
         return { 'status': 'success' }, 200
     except Exception as e:

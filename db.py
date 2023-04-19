@@ -274,11 +274,15 @@ def fetch_image_for_user(id, user_id):
         return None
 
 
-def update_image_for_user(id, user_id, metadata, is_public, is_liked):
+def update_image_for_user(id, user_id, is_public, is_liked):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("UPDATE images SET metadata=%s, is_public=%s, is_liked=%s WHERE id=%s and user_id=%s;", [json.dumps(metadata), is_public, is_liked, id, user_id])
+    
+    if is_public != None:
+        cur.execute("UPDATE images SET is_public=%s WHERE id=%s and user_id=%s;", [is_public, id, user_id])
+    if is_liked != None:
+        cur.execute("UPDATE images SET is_liked=%s WHERE id=%s and user_id=%s;", [is_liked, id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
