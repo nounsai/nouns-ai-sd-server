@@ -278,33 +278,6 @@ def api_create_image(current_user_id):
     response.headers['X-Image-Id'] = id
     return response
 
-
-@app.route('/users/<user_id>/images', methods=['POST'])
-@auth_token_required
-def api_create_image_for_user(current_user_id, user_id):
-
-    if user_id != current_user_id:
-        return jsonify({'message': 'Wrong user!'}), 400
-
-    data = json.loads(request.data)
-    
-    try:
-        thumbnail = base_64_thumbnail_for_base_64_image(data['base_64'])
-        id = create_image(
-            current_user_id,
-            data['base_64'],
-            thumbnail,
-            data['hash'],
-            data['metadata'],
-            data['is_public'],
-            data['is_liked'],
-            data['parent_id']
-        )
-        return { 'id': id, 'thumbnail': thumbnail }, 200
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
-
 @app.route('/images', methods=['GET'])
 @challenge_token_required
 def api_fetch_images():
@@ -331,10 +304,11 @@ def api_fetch_images_for_user(current_user_id, user_id):
     if user_id != current_user_id:
         return jsonify({'message': 'Wrong user!'}), 400
 
-    # /images?page=1&limit=20
+    # /images?page=1&limit=20&favorited=true
     field = request.args.get('field', default = 'image', type = str)
     page = request.args.get('page', default = 1, type = int)
     limit = request.args.get('limit', default = 20, type = int)
+    favorited = request.args.get('favorited')
     offset = (page - 1) * limit
 
     try:
@@ -345,7 +319,8 @@ def api_fetch_images_for_user(current_user_id, user_id):
             images = fetch_images_for_user(
                 current_user_id,
                 limit,
-                offset
+                offset,
+                favorited.lower() == 'true'
             )
             return images, 200
     except Exception as e:

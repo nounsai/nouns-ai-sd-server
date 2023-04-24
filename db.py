@@ -244,10 +244,10 @@ def fetch_images_for_user_with_hash(user_id, hash):
     return json.loads(images_df.to_json(orient="records"))
 
 
-def fetch_images_for_user(user_id, limit, offset):
+def fetch_images_for_user(user_id, limit, offset, favorited):
 
     conn = open_connection()
-    sql = "SELECT * FROM images where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
+    sql = "SELECT * FROM images where user_id=%s {} ORDER BY id DESC LIMIT %s OFFSET %s;".format("AND is_liked=True" if favorited else "")
     images_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
     close_connection(conn)
     return json.loads(images_df.to_json(orient="records"))
