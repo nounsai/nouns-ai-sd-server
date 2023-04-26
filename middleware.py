@@ -43,7 +43,10 @@ PIPELINE_DICT = {
         'Outlines': {},
         'Segmentation': {},
         'Depth': {}
-    }
+    },
+    'Image Processor': {},
+    'Image Segmentor': {},
+    'Depth Estimator': {}
 }
 
 IMAGE_PROCESSOR = None
@@ -57,12 +60,12 @@ def setup_pipelines():
     GenerationMixin._validate_model_kwargs = _no_validate_model_kwargs
     
     control_net_canny = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-canny-diffusers", torch_dtype=torch.float16)
-    IMAGE_PROCESSOR = AutoImageProcessor.from_pretrained("openmmlab/upernet-convnext-small")
-    IMAGE_SEGMENTOR = UperNetForSemanticSegmentation.from_pretrained("openmmlab/upernet-convnext-small")
-    control_net_seg = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-ade20k-diffusers", torch_dtype=torch.float16)
-    DEPTH_ESTIMATOR = pipeline('depth-estimation')
-    control_net_depth = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-depth-diffusers", torch_dtype=torch.float16)
-
+    PIPELINE_DICT['Image Processor'] = AutoImageProcessor.from_pretrained("openmmlab/upernet-convnext-small")
+    PIPELINE_DICT['Image Segmentor'] = UperNetForSemanticSegmentation.from_pretrained("openmmlab/upernet-convnext-small")
+    control_net_seg = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=torch.float16)
+    PIPELINE_DICT['Depth Estimator'] = pipeline('depth-estimation')
+    control_net_depth = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=torch.float16)
+    CONTROL_NET_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
 
     if get_device() == 'cuda':
         for base_model in BASE_MODELS:
@@ -75,12 +78,12 @@ def setup_pipelines():
             PIPELINE_DICT['ControlNet']['Outlines'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net_canny, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['ControlNet']['Outlines'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Outlines'][base_model].scheduler.config)
             PIPELINE_DICT['ControlNet']['Outlines'][base_model].enable_model_cpu_offload()
-            PIPELINE_DICT['ControlNet']['Segmentation'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net_seg, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-            PIPELINE_DICT['ControlNet']['Segmentation'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Segmentation'][base_model].scheduler.config)
-            PIPELINE_DICT['ControlNet']['Segmentation'][base_model].enable_model_cpu_offload()
-            PIPELINE_DICT['ControlNet']['Depth'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net_depth, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-            PIPELINE_DICT['ControlNet']['Depth'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Depth'][base_model].scheduler.config)
-            PIPELINE_DICT['ControlNet']['Depth'][base_model].enable_model_cpu_offload()
+            PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL] = StableDiffusionControlNetPipeline.from_pretrained(CONTROL_NET_BASE_MODEL, controlnet=control_net_seg, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+            PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].scheduler.config)
+            PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].enable_model_cpu_offload()
+            PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL] = StableDiffusionControlNetPipeline.from_pretrained(CONTROL_NET_BASE_MODEL, controlnet=control_net_depth, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+            PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].scheduler.config)
+            PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].enable_model_cpu_offload()
         for instructable_model in INSTRUCTABLE_MODELS:
             PIPELINE_DICT['Pix to Pix'][instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['Pix to Pix'][instructable_model] = PIPELINE_DICT['Pix to Pix'][instructable_model].to('cuda')
@@ -171,7 +174,7 @@ def control_net_outlines(control_net_pipeline, prompt, generator, negative_promp
 
 def control_net_depth(control_net_pipeline, prompt, generator, negative_prompt, steps, img):
     
-    image = DEPTH_ESTIMATOR(img)['depth']
+    image = PIPELINE_DICT['Depth Estimator'](img)['depth']
     image = numpy.array(image)
     image = image[:, :, None]
     image = numpy.concatenate([image, image, image], axis=2)
@@ -189,12 +192,12 @@ def control_net_depth(control_net_pipeline, prompt, generator, negative_prompt, 
 
 def control_net_segmentation(control_net_pipeline, prompt, generator, negative_prompt, steps, img):
     
-    pixel_values = IMAGE_PROCESSOR(img, return_tensors="pt").pixel_values
+    pixel_values = PIPELINE_DICT['Image Processor'](img, return_tensors="pt").pixel_values
 
     with torch.no_grad():
-        outputs = IMAGE_SEGMENTOR(pixel_values)
+        outputs = PIPELINE_DICT['Image Segmentor'](pixel_values)
 
-    seg = IMAGE_PROCESSOR.post_process_semantic_segmentation(outputs, target_sizes=[img.size[::-1]])[0]
+    seg = PIPELINE_DICT['Image Processor'].post_process_semantic_segmentation(outputs, target_sizes=[img.size[::-1]])[0]
     color_seg = numpy.zeros((seg.shape[0], seg.shape[1], 3), dtype=numpy.uint8)
     for label, color in enumerate(PALETTE):
         color_seg[seg == label, :] = color
