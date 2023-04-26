@@ -249,8 +249,8 @@ def api_create_image(current_user_id):
             images = inference(PIPELINE_DICT['Image to Image'][data['model_id']], 'Image to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'], img=image, strength=float(data['strength']))
         elif data['inference_mode'] == 'Pix to Pix':
             images = inference(PIPELINE_DICT['Pix to Pix'][data['model_id']], 'Pix to Pix', data['prompt'], n_images=int(data['samples']), steps=int(data['steps']), seed=int(data['seed']), img=image)
-        elif data['inference_mode'] == 'ControlNet':
-            images = inference(PIPELINE_DICT['ControlNet'][data['model_id']], 'ControlNet', data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), img=image, strength=int(data['strength']))
+        elif data['inference_mode'].split(' ')[0] == 'ControlNet':
+            images = inference(PIPELINE_DICT['ControlNet'][data['inference_mode'].split(' ')[1]][data['model_id']], 'ControlNet', data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), img=image, strength=int(data['strength']))
         
         if parent_id == -1:
             images_with_hash = fetch_images_with_hash(hashlib.sha256(data['base_64'].encode('utf-8')).hexdigest())
