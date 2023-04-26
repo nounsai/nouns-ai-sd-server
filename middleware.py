@@ -12,7 +12,7 @@ import torch
 from PIL import Image
 from googletrans import Translator
 
-from transformers import pipeline
+from transformers import pipeline, AutoImageProcessor, UperNetForSemanticSegmentation
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 from clip_interrogator import Config, Interrogator
@@ -22,7 +22,7 @@ from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiff
 
 from db import fetch_image, fetch_user, update_video_for_user
 from utils import convert_mp4_to_mov, dropbox_get_link, dropbox_upload_file, fetch_env_config, get_device, image_from_base_64, preprocess, adjust_thickness, refresh_dir, \
-                 BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UPSCALE_MODELS
+                 BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UPSCALE_MODELS, PALETTE
 
 config = fetch_env_config()
 torch.backends.cudnn.benchmark = False
@@ -39,8 +39,16 @@ PIPELINE_DICT = {
     'Text': {},
     'Interrogator': {},
     'Upscale': {},
-    'ControlNet': {},
+    'ControlNet': {
+        'Outlines': {},
+        'Segmentation': {},
+        'Depth': {}
+    }
 }
+
+IMAGE_PROCESSOR = None
+IMAGE_SEGMENTOR= None
+DEPTH_ESTIMATOR = None
 
 def _no_validate_model_kwargs(self, model_kwargs):
     pass
@@ -49,8 +57,12 @@ def setup_pipelines():
     GenerationMixin._validate_model_kwargs = _no_validate_model_kwargs
     
     control_net_canny = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-canny-diffusers", torch_dtype=torch.float16)
+    IMAGE_PROCESSOR = AutoImageProcessor.from_pretrained("openmmlab/upernet-convnext-small")
+    IMAGE_SEGMENTOR = UperNetForSemanticSegmentation.from_pretrained("openmmlab/upernet-convnext-small")
     control_net_seg = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-ade20k-diffusers", torch_dtype=torch.float16)
+    DEPTH_ESTIMATOR = pipeline('depth-estimation')
     control_net_depth = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-depth-diffusers", torch_dtype=torch.float16)
+
 
     if get_device() == 'cuda':
         for base_model in BASE_MODELS:
@@ -60,14 +72,14 @@ def setup_pipelines():
             PIPELINE_DICT['Image to Image'][base_model] = StableDiffusionImg2ImgPipeline.from_pretrained(base_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['Image to Image'][base_model].scheduler = DPMSolverMultistepScheduler.from_config(PIPELINE_DICT['Image to Image'][base_model].scheduler.config)
             PIPELINE_DICT['Image to Image'][base_model] = PIPELINE_DICT['Image to Image'][base_model].to('cuda')
-            PIPELINE_DICT['ControlNet']['Canny'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net_canny, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-            PIPELINE_DICT['ControlNet']['Canny'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet'][base_model].scheduler.config)
-            PIPELINE_DICT['ControlNet']['Canny'][base_model].enable_model_cpu_offload()
+            PIPELINE_DICT['ControlNet']['Outlines'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net_canny, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+            PIPELINE_DICT['ControlNet']['Outlines'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Outlines'][base_model].scheduler.config)
+            PIPELINE_DICT['ControlNet']['Outlines'][base_model].enable_model_cpu_offload()
             PIPELINE_DICT['ControlNet']['Segmentation'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net_seg, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-            PIPELINE_DICT['ControlNet']['Segmentation'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet'][base_model].scheduler.config)
+            PIPELINE_DICT['ControlNet']['Segmentation'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Segmentation'][base_model].scheduler.config)
             PIPELINE_DICT['ControlNet']['Segmentation'][base_model].enable_model_cpu_offload()
             PIPELINE_DICT['ControlNet']['Depth'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net_depth, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-            PIPELINE_DICT['ControlNet']['Depth'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet'][base_model].scheduler.config)
+            PIPELINE_DICT['ControlNet']['Depth'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Depth'][base_model].scheduler.config)
             PIPELINE_DICT['ControlNet']['Depth'][base_model].enable_model_cpu_offload()
         for instructable_model in INSTRUCTABLE_MODELS:
             PIPELINE_DICT['Pix to Pix'][instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
@@ -144,19 +156,60 @@ def pix_to_pix(p2p_pipeline, prompt, generator, n_images, steps, scale, img):
     return images
 
 
-def control_net(control_net_pipeline, prompt, generator, negative_prompt, steps, thickness, img):
-
-    translator = Translator()
+def control_net_outlines(control_net_pipeline, prompt, generator, negative_prompt, steps, thickness, img):
     
     canny_img = adjust_thickness(img, thickness)
     images = control_net_pipeline(
         prompt,
         canny_img,
-        negative_prompt= "" if len(negative_prompt) == 0 else translator.translate(negative_prompt).text,
+        negative_prompt= "" if len(negative_prompt) == 0 else negative_prompt,
         generator=generator,
         num_inference_steps=steps,
     ).images
     return images
+
+
+def control_net_depth(control_net_pipeline, prompt, generator, negative_prompt, steps, img):
+    
+    image = DEPTH_ESTIMATOR(img)['depth']
+    image = numpy.array(image)
+    image = image[:, :, None]
+    image = numpy.concatenate([image, image, image], axis=2)
+    depth_img = Image.fromarray(image)
+
+    images = control_net_pipeline(
+        prompt,
+        depth_img,
+        negative_prompt= "" if len(negative_prompt) == 0 else negative_prompt,
+        generator=generator,
+        num_inference_steps=steps,
+    ).images
+    return images
+
+
+def control_net_segmentation(control_net_pipeline, prompt, generator, negative_prompt, steps, img):
+    
+    pixel_values = IMAGE_PROCESSOR(img, return_tensors="pt").pixel_values
+
+    with torch.no_grad():
+        outputs = IMAGE_SEGMENTOR(pixel_values)
+
+    seg = IMAGE_PROCESSOR.post_process_semantic_segmentation(outputs, target_sizes=[img.size[::-1]])[0]
+    color_seg = numpy.zeros((seg.shape[0], seg.shape[1], 3), dtype=numpy.uint8)
+    for label, color in enumerate(PALETTE):
+        color_seg[seg == label, :] = color
+    color_seg = color_seg.astype(numpy.uint8)
+    segmented_img = Image.fromarray(color_seg)
+
+    images = control_net_pipeline(
+        prompt,
+        segmented_img,
+        negative_prompt= "" if len(negative_prompt) == 0 else negative_prompt,
+        generator=generator,
+        num_inference_steps=steps,
+    ).images
+    return images
+
 
 
 # def unclip_images(video_id, user_id, unclip_pipeline, metadata):
@@ -278,8 +331,14 @@ def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=
             elif inf_mode == 'Pix to Pix':
                 return pix_to_pix(pipeline, prompt, generator, n_images, steps, scale, img)
         
-            elif inf_mode == 'ControlNet':
-                return control_net(pipeline, prompt, generator, negative_prompt, steps, strength, img)
+            elif inf_mode.split(' ')[1] == 'Outlines':
+                return control_net_outlines(pipeline, prompt, generator, negative_prompt, steps, strength, img)
+        
+            elif inf_mode.split(' ')[1] == 'Depth':
+                return control_net_depth(pipeline, prompt, generator, negative_prompt, steps, img)
+        
+            elif inf_mode.split(' ')[1] == 'Segmentation':
+                return control_net_segmentation(pipeline, prompt, generator, negative_prompt, steps, img)
         
     except Exception as e:
         print('Internal server error with inferencing {}: {}'.format(inf_mode, str(e)))
