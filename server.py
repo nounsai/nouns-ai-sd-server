@@ -23,7 +23,7 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
-        fetch_user_for_verify_key, verify_user_for_id
+        fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -188,6 +188,71 @@ def api_verify_key(verify_key):
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+# route to request password reset
+@app.route('/users/password/reset', methods=['POST'])
+@challenge_token_required
+def api_request_password_reset():
+    data = json.loads(request.data)
+
+    if not data or 'email' not in data:
+        return jsonify({'message': 'Invalid data'}), 400
+
+    email = data['email']
+    reset_key = secrets.token_hex(48)
+
+    is_success, message = create_password_reset_for_user(email, reset_key)
+
+    if not is_success:
+        return jsonify({'message': message}), 400
+
+    # send password reset email
+    message = Mail(
+        from_email='admin@nounsai.wtf',
+        to_emails=[To(data['email'])],
+        subject='NounsAI Playground Password Reset',
+        html_content=f'''
+<p>Hello! You are receiving this email because you requested a password reset at <a href="https://nounsai.wtf">nounsai.wtf</a>.
+To reset your password, please click on this link: <a href="https://nounsai.wtf/reset/{reset_key}">Reset Password</a><br></p>
+<p>If you didn\'t initiate this request, you can safely ignore this email.</p>
+'''
+    )
+    response = sg.send(message)
+
+    return {'status': 'success'}, 200
+
+# route to fetch password reset info
+@app.route('/users/password/reset/<reset_key>', methods=['GET'])
+@challenge_token_required
+def api_get_password_reset(reset_key):
+    try:
+        data = get_password_reset(reset_key)
+        return data, 200
+    except Exception as e:
+        if str(e) == 'list index out of range':
+            return {'message': 'Invalid key'}, 400
+
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+# route to verify password reset
+@app.route('/users/password/reset/<reset_key>', methods=['POST'])
+@challenge_token_required
+def api_verify_password_reset(reset_key):
+    data = json.loads(request.data)
+
+    if not data or 'password' not in data:
+        return jsonify({'message': 'Invalid data'}), 400
+
+    new_password_hash = sha256_crypt.encrypt(data['password'])
+
+    is_success, message = verify_password_reset(reset_key, new_password_hash)
+
+    if not is_success:
+        return jsonify({'message': message}), 400
+
+    return jsonify({'status': 'success'}), 200
+
 
 # route to fetch user
 @app.route('/users/<user_id>', methods=['GET'])

@@ -144,6 +144,58 @@ def verify_user_for_id(user_id):
     close_connection(conn)
 
 
+def create_password_reset_for_user(email, reset_key):
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("SELECT * FROM users WHERE email=%s;", [email])
+    users = cur.fetchall()
+
+    if len(users) == 0:
+        close_cursor(cur)
+        close_connection(conn)
+        return False, 'User not found'
+
+    user = users[0]
+    cur.execute("INSERT INTO password_recovery (user_id, reset_key) VALUES (%s, %s);", [user[0], reset_key])
+
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return True, 'success'
+
+
+def get_password_reset(reset_key):
+    conn = open_connection()
+
+    sql = "SELECT * FROM password_recovery WHERE reset_key=%s;"
+    users_df = pd.read_sql_query(sql, conn, params=[reset_key])
+    close_connection(conn)
+    return json.loads(users_df.to_json(orient="records"))[0]
+
+
+def verify_password_reset(reset_key, new_password_hash):
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("SELECT * FROM password_recovery WHERE reset_key=%s;", [reset_key])
+    rows = cur.fetchall()
+
+    if len(rows) == 0:
+        close_cursor(cur)
+        close_connection(conn)
+        return False, 'Reset key not found'
+
+    user_id = rows[0][1]
+
+    cur.execute("UPDATE users SET password=%s WHERE id=%s", [new_password_hash, user_id])
+    cur.execute("DELETE FROM password_recovery WHERE id=%s", [rows[0][0]])
+
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+    return True, 'success'
+
+
 def fetch_user(id):
 
     conn = open_connection()

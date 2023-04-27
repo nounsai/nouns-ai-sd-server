@@ -40,6 +40,17 @@ CREATE TABLE users (
 );
 ```
 
+## Password Resets
+```
+CREATE TABLE password_recovery (
+    id INT GENERATED ALWAYS AS IDENTITY,
+    user_id INT NOT NULL,
+    reset_key VARCHAR(128),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(id)
+);
+```
+
 ## Images
 ```
 CREATE TABLE images (
