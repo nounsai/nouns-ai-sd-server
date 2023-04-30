@@ -12,7 +12,9 @@ from io import BytesIO
 from functools import wraps
 from flask_cors import CORS
 from passlib.hash import sha256_crypt
-from flask import Flask, jsonify, request, make_response
+from flask import Flask, jsonify, request, g, make_response
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
@@ -33,6 +35,14 @@ if config['server_type'] == 'gpu':
 
 app = Flask(__name__)
 CORS(app, expose_headers=['X-Image-Id'])
+CORS(app)
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri='memory://',
+    headers_enabled=True
+)
 
 sg = SendGridAPIClient(config['sendgrid_api_key'])
 
@@ -69,6 +79,8 @@ def auth_token_required(f):
             current_user_id = str(data['id'])
         except:
             return jsonify({'message': 'Token is invalid!'}), 401
+
+        g.current_user_id = current_user_id
 
         return f(current_user_id, *args, **kwargs)
 
@@ -111,6 +123,7 @@ def challenge_token_required(f):
 # route to generate JWT token for authenticated user
 @app.route('/login', methods=['POST'])
 @challenge_token_required
+@limiter.limit('5 per minute', key_func=lambda: request.remote_addr)
 def api_login():
     
     if 'Authorization' not in request.headers:
@@ -134,6 +147,7 @@ def api_login():
 # route to create new user
 @app.route('/users', methods=['POST'])
 @challenge_token_required
+@limiter.limit('5 per minute', key_func=lambda: request.remote_addr)
 def api_create_user():
 
     data = json.loads(request.data)
@@ -176,6 +190,7 @@ To complete registration and verify your email, please click on this link: <a hr
 # route to verify key
 @app.route('/users/verify/<verify_key>', methods=['POST'])
 @challenge_token_required
+@limiter.limit('5 per minute', key_func=lambda: request.remote_addr)
 def api_verify_key(verify_key):
     user = fetch_user_for_verify_key(verify_key)
 
@@ -192,6 +207,7 @@ def api_verify_key(verify_key):
 # route to request password reset
 @app.route('/users/password/reset', methods=['POST'])
 @challenge_token_required
+@limiter.limit('5 per minute', key_func=lambda: request.remote_addr)
 def api_request_password_reset():
     data = json.loads(request.data)
 
@@ -224,6 +240,7 @@ To reset your password, please click on this link: <a href="https://nounsai.wtf/
 # route to fetch password reset info
 @app.route('/users/password/reset/<reset_key>', methods=['GET'])
 @challenge_token_required
+@limiter.limit('5 per minute', key_func=lambda: request.remote_addr)
 def api_get_password_reset(reset_key):
     try:
         data = get_password_reset(reset_key)
@@ -238,6 +255,7 @@ def api_get_password_reset(reset_key):
 # route to verify password reset
 @app.route('/users/password/reset/<reset_key>', methods=['POST'])
 @challenge_token_required
+@limiter.limit('5 per minute', key_func=lambda: request.remote_addr)
 def api_verify_password_reset(reset_key):
     data = json.loads(request.data)
 
@@ -257,6 +275,7 @@ def api_verify_password_reset(reset_key):
 # route to fetch user
 @app.route('/users/<user_id>', methods=['GET'])
 @auth_token_required
+@limiter.limit('20 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -272,6 +291,7 @@ def api_fetch_user(current_user_id, user_id):
 # route to update user
 @app.route('/users/<user_id>', methods=['PUT'])
 @auth_token_required
+@limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_update_user(current_user_id, user_id):
 
     data = json.loads(request.data)
@@ -299,6 +319,7 @@ def api_update_user(current_user_id, user_id):
 @app.route('/images', methods=['POST'])
 @challenge_token_required
 @prepend_user_id
+@limiter.limit(limit_value=lambda: '32 per minute' if g.get('current_user_id', None) else '16 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_create_image(current_user_id):
 
     data = json.loads(request.data)
@@ -345,6 +366,7 @@ def api_create_image(current_user_id):
 
 @app.route('/images', methods=['GET'])
 @challenge_token_required
+@limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_images():
 
     # /images?page=1&limit=20
@@ -364,6 +386,7 @@ def api_fetch_images():
 
 @app.route('/users/<user_id>/images', methods=['GET'])
 @auth_token_required
+@limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_images_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -394,6 +417,7 @@ def api_fetch_images_for_user(current_user_id, user_id):
 
 @app.route('/users/<user_id>/images/<image_id>', methods=['GET'])
 @auth_token_required
+@limiter.limit('100 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_image_for_user(current_user_id, user_id, image_id):
 
     if user_id != current_user_id:
@@ -411,6 +435,7 @@ def api_fetch_image_for_user(current_user_id, user_id, image_id):
 
 @app.route('/users/<user_id>/images/<image_id>', methods=['PUT'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_update_image(current_user_id, user_id, image_id):
 
     if user_id != current_user_id:
@@ -432,6 +457,7 @@ def api_update_image(current_user_id, user_id, image_id):
 
 @app.route('/users/<user_id>/images/<image_id>', methods=['DELETE'])
 @auth_token_required
+@limiter.limit('20 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_delete_image(current_user_id, user_id, image_id):
 
     if user_id != current_user_id:
@@ -455,6 +481,7 @@ def api_delete_image(current_user_id, user_id, image_id):
 
 @app.route('/users/<user_id>/audio', methods=['POST'])
 @auth_token_required
+@limiter.limit('5 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_create_audio_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -477,6 +504,7 @@ def api_create_audio_for_user(current_user_id, user_id):
 
 @app.route('/users/<user_id>/audios', methods=['GET'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_audios_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -500,6 +528,7 @@ def api_fetch_audios_for_user(current_user_id, user_id):
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['GET'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
 
     if user_id != current_user_id:
@@ -517,6 +546,7 @@ def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['PUT'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_update_audio(current_user_id, user_id, audio_id):
 
     if user_id != current_user_id:
@@ -540,6 +570,7 @@ def api_update_audio(current_user_id, user_id, audio_id):
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['DELETE'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_delete_audio(current_user_id, user_id, audio_id):
 
     if user_id != current_user_id:
@@ -563,6 +594,7 @@ def api_delete_audio(current_user_id, user_id, audio_id):
 
 @app.route('/users/<user_id>/links', methods=['POST'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_create_link_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -582,6 +614,7 @@ def api_create_link_for_user(current_user_id, user_id):
 
 @app.route('/users/<user_id>/links', methods=['GET'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_links_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -605,6 +638,7 @@ def api_fetch_links_for_user(current_user_id, user_id):
 
 @app.route('/links/<link_id>', methods=['GET'])
 @challenge_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_link(link_id):
 
     data = json.loads(request.data)
@@ -621,6 +655,7 @@ def api_fetch_link(link_id):
 
 @app.route('/users/<user_id>/links/<link_id>', methods=['PUT'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_update_link(current_user_id, user_id, link_id):
 
     if user_id != current_user_id:
@@ -641,6 +676,7 @@ def api_update_link(current_user_id, user_id, link_id):
 
 @app.route('/users/<user_id>/links/<link_id>', methods=['DELETE'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_delete_link(current_user_id, user_id, link_id):
 
     if user_id != current_user_id:
@@ -664,6 +700,7 @@ def api_delete_link(current_user_id, user_id, link_id):
 
 @app.route('/users/<user_id>/videos', methods=['POST'])
 @auth_token_required
+@limiter.limit('2 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_create_video_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -683,6 +720,7 @@ def api_create_video_for_user(current_user_id, user_id):
 
 @app.route('/users/<user_id>/videos', methods=['GET'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_videos_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
@@ -706,6 +744,7 @@ def api_fetch_videos_for_user(current_user_id, user_id):
 
 @app.route('/users/<user_id>/videos/<video_id>', methods=['GET'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_fetch_video_for_user(current_user_id, user_id, video_id):
 
     if user_id != current_user_id:
@@ -725,6 +764,7 @@ def api_fetch_video_for_user(current_user_id, user_id, video_id):
 
 @app.route('/users/<user_id>/videos/<video_id>', methods=['PUT'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_update_video(current_user_id, user_id, video_id):
 
     if user_id != current_user_id:
@@ -745,6 +785,7 @@ def api_update_video(current_user_id, user_id, video_id):
 
 # @app.route('/videos/<video_id>/process', methods=['GET'])
 # @challenge_token_required
+# @limiter.limit('2 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 # def api_process_video(video_id):
 
 #     try:
@@ -771,6 +812,7 @@ def api_update_video(current_user_id, user_id, video_id):
 
 @app.route('/users/<user_id>/videos/<video_id>', methods=['DELETE'])
 @auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_delete_video(current_user_id, user_id, video_id):
 
     if user_id != current_user_id:
@@ -799,6 +841,7 @@ def health():
 
 @app.route('/extend_prompt', methods=['POST'])
 @challenge_token_required
+@limiter.limit(limit_value=lambda: '20 per minute' if g.get('current_user_id', None) else '5 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def extend_prompt():
 
     content = json.loads(request.data)
@@ -806,6 +849,7 @@ def extend_prompt():
 
 @app.route('/interrogate', methods=['POST'])
 @auth_token_required
+@limiter.limit(limit_value=lambda: '20 per minute' if g.get('current_user_id', None) else '5 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def interrogate(current_user_id):
 
     content = json.loads(request.data)
@@ -814,6 +858,7 @@ def interrogate(current_user_id):
 
 @app.route('/upscale', methods=['POST'])
 @auth_token_required
+@limiter.limit(limit_value=lambda: '10 per minute' if g.get('current_user_id', None) else '5 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def upscale(current_user_id):
 
     content = json.loads(request.data)
