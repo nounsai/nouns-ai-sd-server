@@ -7,6 +7,7 @@ import hashlib
 import datetime
 import secrets
 import base64
+import requests
 
 from PIL import Image
 from io import BytesIO 
@@ -24,7 +25,7 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
-        fetch_user_for_verify_key, verify_user_for_id, \
+        fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
         create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user \
 
 config = fetch_env_config()
@@ -192,6 +193,71 @@ def api_verify_key(verify_key):
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
+# route to request password reset
+@app.route('/users/password/reset', methods=['POST'])
+@challenge_token_required
+def api_request_password_reset():
+    data = json.loads(request.data)
+
+    if not data or 'email' not in data:
+        return jsonify({'message': 'Invalid data'}), 400
+
+    email = data['email']
+    reset_key = secrets.token_hex(48)
+
+    is_success, message = create_password_reset_for_user(email, reset_key)
+
+    if not is_success:
+        return jsonify({'message': message}), 400
+
+    # send password reset email
+    message = Mail(
+        from_email='admin@nounsai.wtf',
+        to_emails=[To(data['email'])],
+        subject='NounsAI Playground Password Reset',
+        html_content=f'''
+<p>Hello! You are receiving this email because you requested a password reset at <a href="https://nounsai.wtf">nounsai.wtf</a>.
+To reset your password, please click on this link: <a href="https://nounsai.wtf/reset/{reset_key}">Reset Password</a><br></p>
+<p>If you didn\'t initiate this request, you can safely ignore this email.</p>
+'''
+    )
+    response = sg.send(message)
+
+    return {'status': 'success'}, 200
+
+# route to fetch password reset info
+@app.route('/users/password/reset/<reset_key>', methods=['GET'])
+@challenge_token_required
+def api_get_password_reset(reset_key):
+    try:
+        data = get_password_reset(reset_key)
+        return data, 200
+    except Exception as e:
+        if str(e) == 'list index out of range':
+            return {'message': 'Invalid key'}, 400
+
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+# route to verify password reset
+@app.route('/users/password/reset/<reset_key>', methods=['POST'])
+@challenge_token_required
+def api_verify_password_reset(reset_key):
+    data = json.loads(request.data)
+
+    if not data or 'password' not in data:
+        return jsonify({'message': 'Invalid data'}), 400
+
+    new_password_hash = sha256_crypt.encrypt(data['password'])
+
+    is_success, message = verify_password_reset(reset_key, new_password_hash)
+
+    if not is_success:
+        return jsonify({'message': message}), 400
+
+    return jsonify({'status': 'success'}), 200
+
+
 # route to fetch user
 @app.route('/users/<user_id>', methods=['GET'])
 @auth_token_required
@@ -252,8 +318,8 @@ def api_create_image(current_user_id):
             images = inference(PIPELINE_DICT['Image to Image'][data['model_id']], 'Image to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'], img=image, strength=float(data['strength']))
         elif data['inference_mode'] == 'Pix to Pix':
             images = inference(PIPELINE_DICT['Pix to Pix'][data['model_id']], 'Pix to Pix', data['prompt'], n_images=int(data['samples']), steps=int(data['steps']), seed=int(data['seed']), img=image)
-        elif data['inference_mode'] == 'ControlNet':
-            images = inference(PIPELINE_DICT['ControlNet'][data['model_id']], 'ControlNet', data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), img=image, strength=int(data['strength']))
+        elif data['inference_mode'].split(' ')[0] == 'ControlNet':
+            images = inference(PIPELINE_DICT['ControlNet'][data['inference_mode'].split(' ')[1]][data['model_id']], data['inference_mode'], data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), img=image, strength=int(data['strength']))
         
         if parent_id == -1:
             images_with_hash = fetch_images_with_hash(hashlib.sha256(data['base_64'].encode('utf-8')).hexdigest())
@@ -281,33 +347,6 @@ def api_create_image(current_user_id):
     response.headers['X-Image-Id'] = id
     return response
 
-
-@app.route('/users/<user_id>/images', methods=['POST'])
-@auth_token_required
-def api_create_image_for_user(current_user_id, user_id):
-
-    if user_id != current_user_id:
-        return jsonify({'message': 'Wrong user!'}), 400
-
-    data = json.loads(request.data)
-    
-    try:
-        thumbnail = base_64_thumbnail_for_base_64_image(data['base_64'])
-        id = create_image(
-            current_user_id,
-            data['base_64'],
-            thumbnail,
-            data['hash'],
-            data['metadata'],
-            data['is_public'],
-            data['is_liked'],
-            data['parent_id']
-        )
-        return { 'id': id, 'thumbnail': thumbnail }, 200
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
-
 @app.route('/images', methods=['GET'])
 @challenge_token_required
 def api_fetch_images():
@@ -334,10 +373,11 @@ def api_fetch_images_for_user(current_user_id, user_id):
     if user_id != current_user_id:
         return jsonify({'message': 'Wrong user!'}), 400
 
-    # /images?page=1&limit=20
+    # /images?page=1&limit=20&favorited=true
     field = request.args.get('field', default = 'image', type = str)
     page = request.args.get('page', default = 1, type = int)
     limit = request.args.get('limit', default = 20, type = int)
+    favorited = request.args.get('favorited')
     offset = (page - 1) * limit
 
     try:
@@ -348,7 +388,8 @@ def api_fetch_images_for_user(current_user_id, user_id):
             images = fetch_images_for_user(
                 current_user_id,
                 limit,
-                offset
+                offset,
+                favorited.lower() == 'true'
             )
             return images, 200
     except Exception as e:
@@ -475,7 +516,21 @@ def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
     
     try:
         audio = fetch_audio_for_user(current_user_id, audio_id)
+        
         if audio is not None:
+            url = f"https://storage.bunnycdn.com/nounsaiaudio/{audio['user_id']}/{audio['cdn_id']}-full.mp3"
+            print(url)
+            headers =  {
+                'accept': '*/*',
+                'AccessKey': f"{config['storage_access_key_audio']}"
+            }
+            print(headers)
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                content_base64 = base64.b64encode(response.content)
+                content_str = content_base64.decode('utf-8')
+                audio['data'] = content_str
+            
             return audio, 200
         else:
             return { 'error': "Audio not found" }, 404
@@ -831,9 +886,8 @@ def api_update_video_project(current_user_id, user_id, video_project_id):
     
     try:
         update_video_project_for_user(
-            video_project_id,
             current_user_id,
-            data['audio_id'],
+            video_project_id,
             data['metadata']
         )
         return { 'status': 'success' }, 200

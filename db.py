@@ -144,6 +144,58 @@ def verify_user_for_id(user_id):
     close_connection(conn)
 
 
+def create_password_reset_for_user(email, reset_key):
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("SELECT * FROM users WHERE email=%s;", [email])
+    users = cur.fetchall()
+
+    if len(users) == 0:
+        close_cursor(cur)
+        close_connection(conn)
+        return False, 'User not found'
+
+    user = users[0]
+    cur.execute("INSERT INTO password_recovery (user_id, reset_key) VALUES (%s, %s);", [user[0], reset_key])
+
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return True, 'success'
+
+
+def get_password_reset(reset_key):
+    conn = open_connection()
+
+    sql = "SELECT * FROM password_recovery WHERE reset_key=%s;"
+    users_df = pd.read_sql_query(sql, conn, params=[reset_key])
+    close_connection(conn)
+    return json.loads(users_df.to_json(orient="records"))[0]
+
+
+def verify_password_reset(reset_key, new_password_hash):
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("SELECT * FROM password_recovery WHERE reset_key=%s;", [reset_key])
+    rows = cur.fetchall()
+
+    if len(rows) == 0:
+        close_cursor(cur)
+        close_connection(conn)
+        return False, 'Reset key not found'
+
+    user_id = rows[0][1]
+
+    cur.execute("UPDATE users SET password=%s WHERE id=%s", [new_password_hash, user_id])
+    cur.execute("DELETE FROM password_recovery WHERE id=%s", [rows[0][0]])
+
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+    return True, 'success'
+
+
 def fetch_user(id):
 
     conn = open_connection()
@@ -244,10 +296,10 @@ def fetch_images_for_user_with_hash(user_id, hash):
     return json.loads(images_df.to_json(orient="records"))
 
 
-def fetch_images_for_user(user_id, limit, offset):
+def fetch_images_for_user(user_id, limit, offset, favorited):
 
     conn = open_connection()
-    sql = "SELECT * FROM images where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
+    sql = "SELECT * FROM images where user_id=%s {} ORDER BY id DESC LIMIT %s OFFSET %s;".format("AND is_liked=True" if favorited else "")
     images_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
     close_connection(conn)
     return json.loads(images_df.to_json(orient="records"))
@@ -575,11 +627,11 @@ def fetch_video_project_for_user(user_id, id):
         return None
 
 
-def update_video_project_for_user(id, user_id, audio_id, metadata):
+def update_video_project_for_user(user_id, id, metadata):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("UPDATE video_projects SET audio_id=%s, metadata=%s, updated_at=NOW() WHERE id=%s and user_id=%s;", [audio_id, json.dumps(metadata), id, user_id])
+    cur.execute("UPDATE video_projects SET metadata=%s, updated_at=NOW() WHERE id=%s and user_id=%s;", [json.dumps(metadata), id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
