@@ -6,6 +6,7 @@ import numpy
 import hashlib
 import datetime
 import secrets
+import base64
 
 from PIL import Image
 from io import BytesIO 
@@ -23,7 +24,8 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
-        fetch_user_for_verify_key, verify_user_for_id
+        fetch_user_for_verify_key, verify_user_for_id, \
+        create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user \
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -32,6 +34,7 @@ if config['server_type'] == 'gpu':
     PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1025 # 10 MB
 CORS(app, expose_headers=['X-Image-Id'])
 
 sg = SendGridAPIClient(config['sendgrid_api_key'])
@@ -413,27 +416,32 @@ def api_delete_image(current_user_id, user_id, image_id):
 #############################
 
 
-@app.route('/users/<user_id>/audio', methods=['POST'])
+@app.route('/users/<user_id>/audios', methods=['POST'])
 @auth_token_required
 def api_create_audio_for_user(current_user_id, user_id):
 
     if user_id != current_user_id:
         return jsonify({'message': 'Wrong user!'}), 400
 
-    data = json.loads(request.data)
-    
-    try:
-        id = create_audio(
-            current_user_id,
-            data['name'],
-            data['url'],
-            data['size'],
-            data['metadata']
-        )
-        return { 'id': id }, 200
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+    if request.files:
+        audio_file = request.files["audio"]
+        audio_data = audio_file.read()
+        
+        try:
+            id = create_audio(
+                current_user_id,
+                audio_data,
+                audio_file.filename,
+                audio_file.content_length,
+                {}
+            )
+            return { 'id': id }, 200
+        except Exception as e:
+            print("Internal server error: {}".format(str(e)))
+            return { 'error': "Internal server error: {}".format(str(e)) }, 500
+    else:
+        return jsonify({"error": "No audio file detected"}), 400
+
 
 @app.route('/users/<user_id>/audios', methods=['GET'])
 @auth_token_required
@@ -745,6 +753,111 @@ def api_delete_video(current_user_id, user_id, video_id):
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
+    
+    
+################################
+######## VIDEO PROJECTS ########
+################################
+
+@app.route('/users/<user_id>/video-projects', methods=['POST'])
+@auth_token_required
+def api_create_video_project_for_user(current_user_id, user_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+
+    data = json.loads(request.data)
+    print(data)
+    
+    try:
+        id = create_video_project(
+            current_user_id,
+            data['audio_id'],
+            data['metadata'],
+        )
+        return { 'id': id }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+@app.route('/users/<user_id>/video-projects', methods=['GET'])
+@auth_token_required
+def api_fetch_video_projects_for_user(current_user_id, user_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+
+    # /video-projects?page=1&limit=20
+    page = request.args.get('page', default = 1, type = int)
+    limit = request.args.get('limit', default = 20, type = int)
+    offset = (page - 1) * limit
+
+    try:
+        video_projects = fetch_video_projects_for_user(
+            current_user_id,
+            limit,
+            offset
+        )
+        return video_projects, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+@app.route('/users/<user_id>/video-projects/<video_project_id>', methods=['GET'])
+@auth_token_required
+def api_fetch_video_project_for_user(current_user_id, user_id, video_project_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+    
+    try:
+        video_project = fetch_video_project_for_user(current_user_id, video_project_id)
+        if video_project is not None:
+            return video_project, 200
+        else:
+            return { 'error': "Video project not found" }, 404
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+@app.route('/users/<user_id>/video-projects/<video_project_id>', methods=['PUT'])
+@auth_token_required
+def api_update_video_project(current_user_id, user_id, video_project_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+
+    data = json.loads(request.data)
+    
+    try:
+        update_video_project_for_user(
+            video_project_id,
+            current_user_id,
+            data['audio_id'],
+            data['metadata']
+        )
+        return { 'status': 'success' }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+    
+    
+@app.route('/users/<user_id>/video-projects/<video_project_id>', methods=['DELETE'])
+@auth_token_required
+def api_delete_video_project(current_user_id, user_id, video_project_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+    
+    try:
+        delete_video_project_for_user(
+            current_user_id,
+            video_project_id
+        )
+        return { 'status': 'success' }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 
 ############################
@@ -787,6 +900,14 @@ def upscale(current_user_id):
     ).images
     return serve_pil_image(images[0])
 
+
+############################
+########## ERRORs ##########
+############################
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({"error": "File size exceeds the allowed limit"}), 413
 
 #######################################################
 ######################## MAIN #########################

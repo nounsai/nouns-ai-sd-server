@@ -11,7 +11,7 @@ import pandas as pd
 import psycopg2.extras
 import uuid
 
-from cdn import upload_image_to_cdn, delete_image_from_cdn
+from cdn import upload_image_to_cdn, delete_image_from_cdn, upload_audio_to_cdn, delete_audio_from_cdn
 
 from configparser import ConfigParser
 
@@ -303,15 +303,26 @@ def delete_image_for_user(id, user_id):
 #######################################################
 
 
-def create_audio(user_id, name, url, size, metadata):
-    
+def create_audio(user_id, audio_byte_data, name, size, metadata):
+    audio_cdn_uuid = str(uuid.uuid4())
+
+    # save to database
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO audio (user_id, name, url, size, metadata) VALUES (%s, %s, %s, %s, %s) RETURNING id;", (user_id, name, url, size, json.dumps(metadata)))
+    
+    sql = "INSERT INTO audio (user_id, name, size, metadata, cdn_id) VALUES (%s, %s, %s, %s, %s) RETURNING id;"
+    fields = [user_id, name, size, json.dumps(metadata), audio_cdn_uuid]
+
+    cur.execute(sql, fields)
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+
+    # Start a new thread for the slow save operation
+    save_thread = threading.Thread(target=upload_audio_to_cdn, args=(user_id, audio_cdn_uuid, audio_byte_data))
+    save_thread.start()
+
     return id
 
 
@@ -333,7 +344,7 @@ def fetch_audios_for_user(user_id, limit, offset):
     return json.loads(audio_df.to_json(orient="records"))
 
 
-def fetch_audio_for_user(id, user_id):
+def fetch_audio_for_user(user_id, id):
 
     conn = open_connection()
     sql = "SELECT * FROM audio WHERE id=%s and user_id=%s;"
@@ -506,6 +517,79 @@ def delete_video_for_user(id, user_id):
     conn = open_connection()
     cur = create_cursor(conn)
     cur.execute("DELETE FROM videos WHERE id=%s and user_id=%s;", [id, user_id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+    
+########################################################
+################### VIDEO PROJECTS #####################
+########################################################
+
+
+def create_video_project(user_id, audio_id, metadata):
+
+    # save to database
+    conn = open_connection()
+    cur = create_cursor(conn)
+    
+    sql = "INSERT INTO video_projects (user_id, audio_id, metadata) VALUES (%s, %s, %s) RETURNING id;"
+    fields = [user_id, audio_id, json.dumps(metadata)]
+
+    cur.execute(sql, fields)
+    id = cur.fetchone()[0]
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+    return id
+
+
+def fetch_video_projects():
+
+    conn = open_connection()
+    sql = "SELECT * FROM video_projects ORDER BY id ASC;"
+    video_projects_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    return json.loads(video_projects_df.to_json(orient="records"))
+
+
+def fetch_video_projects_for_user(user_id, limit, offset):
+
+    conn = open_connection()
+    sql = "SELECT * FROM video_projects where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
+    video_projects_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
+    close_connection(conn)
+    return json.loads(video_projects_df.to_json(orient="records"))
+
+
+def fetch_video_project_for_user(user_id, id):
+
+    conn = open_connection()
+    sql = "SELECT * FROM video_projects WHERE id=%s and user_id=%s;"
+    video_project_df = pd.read_sql_query(sql, conn, params=[id, user_id])
+    close_connection(conn)
+    try:
+        return json.loads(video_project_df.to_json(orient="records"))[0]
+    except Exception as e:
+        return None
+
+
+def update_video_project_for_user(id, user_id, audio_id, metadata):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE video_projects SET audio_id=%s, metadata=%s, updated_at=NOW() WHERE id=%s and user_id=%s;", [audio_id, json.dumps(metadata), id, user_id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    
+
+def delete_video_project_for_user(id, user_id):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("DELETE FROM video_projects WHERE id=%s and user_id=%s;", [id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
