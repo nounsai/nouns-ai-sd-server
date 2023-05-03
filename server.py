@@ -883,7 +883,7 @@ def api_update_video_project(current_user_id, user_id, video_project_id):
         return jsonify({'message': 'Wrong user!'}), 400
 
     data = json.loads(request.data)
-    
+    print(data)
     try:
         update_video_project_for_user(
             current_user_id,
