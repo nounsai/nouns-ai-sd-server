@@ -6,3 +6,4 @@ flagged/
 images/
 __pycache__
 .DS_Store
+database.local.ini

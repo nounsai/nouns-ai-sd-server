@@ -144,7 +144,8 @@ CREATE TABLE referrals (
     metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_referrer FOREIGN KEY(referrer_id) REFERENCES users(id) ON DELETE CASCADE
+    PRIMARY KEY(id),
+    CONSTRAINT fk_referrer FOREIGN KEY(referrer_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_referred FOREIGN KEY(referred_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
@@ -158,6 +159,7 @@ CREATE TABLE rewards (
     metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(id)
 );
 ```
 
@@ -174,6 +176,7 @@ CREATE TABLE transactions (
     amount INT NOT NULL,
     amount_remaining INT NOT NULL,
     memo VARCHAR (256) NOT NULL,
+    PRIMARY KEY(id),
     CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
