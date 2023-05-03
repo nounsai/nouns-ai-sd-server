@@ -34,6 +34,7 @@ CREATE TABLE users (
     password VARCHAR(128) NOT NULL,
     is_verified BOOLEAN DEFAULT FALSE NOT NULL,
     verify_key VARCHAR(128),
+    referral_token VARCHAR(128) NOT NULL UNIQUE,
     metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id)
@@ -131,5 +132,48 @@ CREATE TABLE api_hosts (
     id INT GENERATED ALWAYS AS IDENTITY,
     address VARCHAR (256) NOT NULL UNIQUE,
     PRIMARY KEY(id)
+);
+```
+
+## Referrals
+```
+CREATE TABLE referrals (
+    id INT GENERATED ALWAYS AS IDENTITY,
+    referrer_id INT NOT NULL,
+    referred_id INT NOT NULL,
+    metadata JSON NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_referrer FOREIGN KEY(referrer_id) REFERENCES users(id) ON DELETE CASCADE
+    CONSTRAINT fk_referred FOREIGN KEY(referred_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+## Rewards
+```
+CREATE TABLE rewards (
+    id INT GENERATED ALWAYS AS IDENTITY,
+    name VARCHAR (128) NOT NULL,
+    sql TEXT NOT NULL,
+    metadata JSON NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+);
+```
+
+## Transactions
+```
+CREATE TABLE transactions (
+    id INT GENERATED ALWAYS AS IDENTITY,
+    metadata JSON NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMP,
+    user_id INT NOT NULL,
+    type VARCHAR (128) NOT NULL,
+    amount INT NOT NULL,
+    amount_remaining INT NOT NULL,
+    memo VARCHAR (256) NOT NULL,
+    CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
