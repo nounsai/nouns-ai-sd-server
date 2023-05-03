@@ -24,7 +24,8 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
         fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
-        update_user_referral_token, fetch_user_for_referral_token, create_referral
+        update_user_referral_token, fetch_user_for_referral_token, create_referral, fetch_referral_for_referred, \
+        execute_reward, update_user_metadata, create_transaction
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -191,6 +192,28 @@ def api_verify_key(verify_key):
 
     try:
         verify_user_for_id(user['id'])
+
+        # check for referrals
+        referral = fetch_referral_for_referred(user['id'])
+        reward_name = 'referral_verify'
+
+        if referral is not None:
+            reward_result = execute_reward(reward_name, user['id'])
+
+            # give reward to referrer
+            if 'amount' in reward_result and reward_result['amount'] > 0:
+                create_transaction(
+                    user_id=referral['referrer_id'],
+                    amount=reward_result['amount'],
+                    amount_remaining=reward_result['amount'],
+                    expires_at=reward_result['expires_at'],
+                    memo='rewards_' + reward_name
+                )
+            # mark reward as complete
+            if 'complete' in reward_result and reward_result['complete'] is True:
+                user['metadata']['rewards_' + reward_name] = True
+                update_user_metadata(user['id'], user['metadata'])
+
         return { 'id': user['id'] }, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
