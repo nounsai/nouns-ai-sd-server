@@ -6,7 +6,6 @@ import numpy
 import hashlib
 import datetime
 import secrets
-import uuid
 
 from PIL import Image
 from io import BytesIO 
@@ -25,7 +24,7 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
         fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
-        update_user_referral_token
+        update_user_referral_token, fetch_user_for_referral_token, create_referral
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -170,6 +169,12 @@ To complete registration and verify your email, please click on this link: <a hr
         )
         response = sg.send(message)
 
+        # handle referrals
+        if data.get('referralToken') is not None:
+            referrer_id = fetch_user_for_referral_token(data['referralToken'])['id']
+            create_referral(referrer_id=referrer_id, referred_id=id, metadata={})
+
+
         return { 'id': id }, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
@@ -304,7 +309,7 @@ def api_fetch_user_referral_token(current_user_id, user_id):
         user = fetch_user(user_id)
         if user['referral_token'] is None:
             # set new token if not currently set
-            new_token = uuid.uuid4().hex
+            new_token = secrets.token_hex(48)
             update_user_referral_token(user_id, new_token)
             return { 'token': new_token }, 200
         else:

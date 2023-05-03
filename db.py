@@ -135,6 +135,15 @@ def fetch_user_for_verify_key(verify_key):
         return None
 
 
+def fetch_user_for_referral_token(token):
+
+    conn = open_connection()
+    sql = "SELECT * FROM users WHERE referral_token=%s;"
+    users_df = pd.read_sql_query(sql, conn, params=[token])
+    close_connection(conn)
+    return json.loads(users_df.to_json(orient="records"))[0]
+
+
 def verify_user_for_id(user_id):
     conn = open_connection()
     cur = create_cursor(conn)
@@ -233,6 +242,23 @@ def delete_user(id):
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+
+
+########################################################
+####################### Referrals ######################
+########################################################
+
+
+def create_referral(referrer_id, referred_id, metadata):
+    
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("INSERT INTO referrals (referrer_id, referred_id, metadata) VALUES (%s, %s, %s) RETURNING id;", (referrer_id, referred_id, json.dumps(metadata)))
+    id = cur.fetchone()[0]
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return id
 
 
 
