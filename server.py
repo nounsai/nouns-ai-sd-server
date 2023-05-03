@@ -6,6 +6,7 @@ import numpy
 import hashlib
 import datetime
 import secrets
+import uuid
 
 from PIL import Image
 from io import BytesIO 
@@ -23,7 +24,8 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
-        fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset
+        fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
+        update_user_referral_token
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -286,6 +288,27 @@ def api_update_user(current_user_id, user_id):
             data['metadata']
         )
         return { 'status': 'success' }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+# route to fetch user's referral token
+@app.route('/users/<user_id>/referral-token', methods=['GET'])
+@auth_token_required
+def api_fetch_user_referral_token(current_user_id, user_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Editing wrong user!'}), 400
+
+    try:
+        user = fetch_user(user_id)
+        if user['referral_token'] is None:
+            # set new token if not currently set
+            new_token = uuid.uuid4().hex
+            update_user_referral_token(user_id, new_token)
+            return { 'token': new_token }, 200
+        else:
+            return { 'token': user['referral_token'] } , 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500

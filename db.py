@@ -215,6 +215,16 @@ def update_user(id, password, metadata):
     close_connection(conn)
 
 
+def update_user_referral_token(id, token):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE users SET referral_token=%s WHERE id=%s;", [token, id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
 def delete_user(id):
 
     conn = open_connection()
@@ -223,6 +233,7 @@ def delete_user(id):
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+
 
 
 ########################################################
