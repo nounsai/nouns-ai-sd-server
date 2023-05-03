@@ -67,7 +67,7 @@ if __name__ == '__main__':
 
     print('Adding `referral_token` column to table `users`')
 
-    cur.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_token VARCHAR(128) NOT NULL UNIQUE;')
+    cur.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_token VARCHAR(128);')
     conn.commit()
 
     print('finished')
