@@ -34,7 +34,7 @@ CREATE TABLE users (
     password VARCHAR(128) NOT NULL,
     is_verified BOOLEAN DEFAULT FALSE NOT NULL,
     verify_key VARCHAR(128),
-    referral_token VARCHAR(128) NOT NULL UNIQUE,
+    referral_token VARCHAR(128),
     metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id)
