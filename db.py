@@ -347,12 +347,8 @@ def delete_reward(id):
 
 
 def create_transaction(
-    user_id, amount, metadata={}, expires_at=None, memo='', amount_remaining=None, t_type='credit'
+    user_id, amount, metadata={}, expires_at=None, memo='', amount_remaining=0, t_type='credit'
 ):
-    
-    amount_re = 0
-    if amount_remaining is not None:
-        amount_re = amount_remaining
 
     conn = open_connection()
     cur = create_cursor(conn)
@@ -360,7 +356,7 @@ def create_transaction(
         "INSERT INTO transactions (user_id, amount, amount_remaining, memo, metadata, expires_at, type) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;", (
             user_id,
             amount, 
-            amount_re,
+            amount_remaining,
             memo,
             json.dumps(metadata), 
             expires_at,
@@ -379,7 +375,7 @@ def fetch_transactions_for_user(id, expired=False):
     conn = open_connection()
     sql = "SELECT * FROM transactions WHERE user_id=%s"
     params = [id]
-    if expired is not True:
+    if not expired:
         sql += " AND expires_at > %s;"
         params.append(datetime.datetime.utcnow())
     else:

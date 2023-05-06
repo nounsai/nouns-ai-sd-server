@@ -210,7 +210,7 @@ def api_verify_key(verify_key):
                     memo='rewards_' + reward_name
                 )
             # mark reward as complete
-            if 'complete' in reward_result and reward_result['complete'] is True:
+            if 'complete' in reward_result and reward_result['complete']:
                 user['metadata']['rewards_' + reward_name] = True
                 update_user_metadata(user['id'], user['metadata'])
 
