@@ -25,7 +25,7 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
         fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
         update_user_referral_token, fetch_user_for_referral_token, create_referral, fetch_referral_for_referred, \
-        execute_reward, update_user_metadata, create_transaction
+        execute_reward, update_user_metadata, create_transaction, fetch_transactions_for_user
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -337,6 +337,25 @@ def api_fetch_user_referral_token(current_user_id, user_id):
             return { 'token': new_token }, 200
         else:
             return { 'token': user['referral_token'] } , 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+# route to fetch user's current credit balance
+@app.route('/users/<user_id>/credits', methods=['GET'])
+@auth_token_required
+def api_fetch_user_credits(current_user_id, user_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Editing wrong user!'}), 400
+
+    try:
+        transactions = fetch_transactions_for_user(user_id)
+        credit_sum = 0
+        for trxn in transactions:
+            credit_sum += trxn.get('amount_remaining', 0)
+
+        return { 'credits': credit_sum }
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500

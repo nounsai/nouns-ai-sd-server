@@ -286,6 +286,16 @@ def fetch_referral_for_referred(referred_id):
         return None
     else:
         return referrals[0]
+    
+
+def delete_referral(id):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("DELETE FROM referrals WHERE id=%s;", [id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
 
 
 ########################################################
@@ -314,11 +324,21 @@ def execute_reward(name, *args):
 
     # convert expires_at from # of days to datetime
     if 'expires_at' in result:
-        result['expires_at'] = datetime.datetime.now() + datetime.timedelta(days=result['expires_at'])
+        result['expires_at'] = datetime.datetime.utcnow() + datetime.timedelta(days=result['expires_at'])
     else:
-        result['expires_at'] = datetime.datetime.now() + datetime.timedelta(days=DEFAULT_CREDIT_EXPIRATION)
+        result['expires_at'] = datetime.datetime.utcnow() + datetime.timedelta(days=DEFAULT_CREDIT_EXPIRATION)
 
     return result
+
+
+def delete_reward(id):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("DELETE FROM rewards WHERE id=%s;", [id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
 
 
 ########################################################
@@ -352,6 +372,21 @@ def create_transaction(
     conn.commit()
     close_connection(conn)
     return id
+
+
+def fetch_transactions_for_user(id, expired=False):
+
+    conn = open_connection()
+    sql = "SELECT * FROM transactions WHERE user_id=%s"
+    params = [id]
+    if expired is not True:
+        sql += " AND expires_at > %s;"
+        params.append(datetime.datetime.utcnow())
+    else:
+        sql += ";"
+    users_df = pd.read_sql_query(sql, conn, params=params)
+    close_connection(conn)
+    return json.loads(users_df.to_json(orient="records"))
 
 
 ########################################################
