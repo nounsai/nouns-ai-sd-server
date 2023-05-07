@@ -418,14 +418,19 @@ def update_audio_for_user(id, user_id, name, url, size, metadata):
     close_connection(conn)
 
 
-def delete_audio_for_user(id, user_id):
+def delete_audio_and_video_project_for_user(user_id, id):
 
     conn = open_connection()
     cur = create_cursor(conn)
+    cur.execute("SELECT * FROM audio WHERE id=%s and user_id=%s;", [id, user_id])
+    audio_cdn_id = cur.fetchone()[5]
     cur.execute("DELETE FROM audio WHERE id=%s and user_id=%s;", [id, user_id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+    
+    delete_thread = threading.Thread(target=delete_audio_from_cdn, args=(user_id, audio_cdn_id))
+    delete_thread.start()
 
 
 #######################################################
@@ -637,7 +642,7 @@ def update_video_project_for_user(user_id, id, metadata):
     close_connection(conn)
     
 
-def delete_video_project_for_user(id, user_id):
+def delete_video_project_for_user(user_id, id):
 
     conn = open_connection()
     cur = create_cursor(conn)

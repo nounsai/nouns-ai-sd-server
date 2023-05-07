@@ -6,7 +6,6 @@ import numpy
 import hashlib
 import datetime
 import secrets
-import base64
 import requests
 
 from PIL import Image
@@ -22,11 +21,13 @@ from sendgrid.helpers.mail import Mail, To
 from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
-        create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
+        create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_and_video_project_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
         fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
         create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user \
+
+from cdn import download_audio_from_cdn
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -35,7 +36,7 @@ if config['server_type'] == 'gpu':
     PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1025 # 10 MB
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1025 # 5 MB
 CORS(app, expose_headers=['X-Image-Id'])
 
 sg = SendGridAPIClient(config['sendgrid_api_key'])
@@ -518,19 +519,11 @@ def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
         audio = fetch_audio_for_user(current_user_id, audio_id)
         
         if audio is not None:
-            url = f"https://storage.bunnycdn.com/nounsaiaudio/{audio['user_id']}/{audio['cdn_id']}-full.mp3"
-            print(url)
-            headers =  {
-                'accept': '*/*',
-                'AccessKey': f"{config['storage_access_key_audio']}"
-            }
-            print(headers)
-            response = requests.get(url, headers=headers)
-            if response.status_code == 200:
-                content_base64 = base64.b64encode(response.content)
-                content_str = content_base64.decode('utf-8')
-                audio['data'] = content_str
-            
+            audioData = download_audio_from_cdn(user_id, audio['cdn_id'])
+            if audioData == None:
+                raise Exception("Audio not found in CDN")    
+            audio['data'] = audioData
+    
             return audio, 200
         else:
             return { 'error': "Audio not found" }, 404
@@ -563,13 +556,13 @@ def api_update_audio(current_user_id, user_id, audio_id):
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['DELETE'])
 @auth_token_required
-def api_delete_audio(current_user_id, user_id, audio_id):
+def api_delete_audio_and_video_project(current_user_id, user_id, audio_id):
 
     if user_id != current_user_id:
         return jsonify({'message': 'Wrong user!'}), 400
     
     try:
-        delete_audio_for_user(
+        delete_audio_and_video_project_for_user(
             current_user_id,
             audio_id
         )
@@ -822,7 +815,6 @@ def api_create_video_project_for_user(current_user_id, user_id):
         return jsonify({'message': 'Wrong user!'}), 400
 
     data = json.loads(request.data)
-    print(data)
     
     try:
         id = create_video_project(
@@ -883,30 +875,11 @@ def api_update_video_project(current_user_id, user_id, video_project_id):
         return jsonify({'message': 'Wrong user!'}), 400
 
     data = json.loads(request.data)
-    print(data)
     try:
         update_video_project_for_user(
             current_user_id,
             video_project_id,
             data['metadata']
-        )
-        return { 'status': 'success' }, 200
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
-    
-    
-@app.route('/users/<user_id>/video-projects/<video_project_id>', methods=['DELETE'])
-@auth_token_required
-def api_delete_video_project(current_user_id, user_id, video_project_id):
-
-    if user_id != current_user_id:
-        return jsonify({'message': 'Wrong user!'}), 400
-    
-    try:
-        delete_video_project_for_user(
-            current_user_id,
-            video_project_id
         )
         return { 'status': 'success' }, 200
     except Exception as e:
