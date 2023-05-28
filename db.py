@@ -10,6 +10,7 @@ import threading
 import pandas as pd
 import psycopg2.extras
 import uuid
+import datetime
 
 from cdn import upload_image_to_cdn, delete_image_from_cdn
 
@@ -21,6 +22,7 @@ from utils import fetch_env_config
 config = fetch_env_config()
 
 SAVE_IMAGES_TO_DATABASE = config['save_image_to_database']
+DEFAULT_CREDIT_EXPIRATION = config['default_credit_expiration']
 LOGGING = False
 
 
@@ -135,6 +137,15 @@ def fetch_user_for_verify_key(verify_key):
         return None
 
 
+def fetch_user_for_referral_token(token):
+
+    conn = open_connection()
+    sql = "SELECT * FROM users WHERE referral_token=%s;"
+    users_df = pd.read_sql_query(sql, conn, params=[token])
+    close_connection(conn)
+    return json.loads(users_df.to_json(orient="records"))[0]
+
+
 def verify_user_for_id(user_id):
     conn = open_connection()
     cur = create_cursor(conn)
@@ -215,6 +226,26 @@ def update_user(id, password, metadata):
     close_connection(conn)
 
 
+def update_user_referral_token(id, token):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE users SET referral_token=%s WHERE id=%s;", [token, id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
+def update_user_metadata(id, metadata):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE users SET metadata=%s WHERE id=%s;", [json.dumps(metadata), id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
 def delete_user(id):
 
     conn = open_connection()
@@ -223,6 +254,135 @@ def delete_user(id):
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+
+
+########################################################
+####################### REFERRALS ######################
+########################################################
+
+
+def create_referral(referrer_id, referred_id, metadata):
+    
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("INSERT INTO referrals (referrer_id, referred_id, metadata) VALUES (%s, %s, %s) RETURNING id;", (referrer_id, referred_id, json.dumps(metadata)))
+    id = cur.fetchone()[0]
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return id
+
+
+def fetch_referral_for_referred(referred_id):
+
+    conn = open_connection()
+    sql = "SELECT * FROM referrals WHERE referred_id=%s;"
+    users_df = pd.read_sql_query(sql, conn, params=[referred_id])
+    close_connection(conn)
+
+    referrals = json.loads(users_df.to_json(orient="records"))
+
+    if len(referrals) == 0:
+        return None
+    else:
+        return referrals[0]
+    
+
+def delete_referral(id):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("DELETE FROM referrals WHERE id=%s;", [id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
+########################################################
+######################## REWARDS #######################
+########################################################
+
+
+def fetch_reward(name):
+
+    conn = open_connection()
+    sql = "SELECT * FROM rewards WHERE name=%s;"
+    users_df = pd.read_sql_query(sql, conn, params=[name])
+    close_connection(conn)
+    return json.loads(users_df.to_json(orient="records"))[0]
+
+
+def execute_reward(name, *args):
+
+    reward = fetch_reward(name)
+    sql_query = reward['sql']
+
+    conn = open_connection()
+    results_df = pd.read_sql_query(sql_query, conn, params=args)
+    close_connection(conn)
+    result = json.loads(results_df.to_json(orient="records"))[0]
+
+    # convert expires_at from # of days to datetime
+    if 'expires_at' in result:
+        result['expires_at'] = datetime.datetime.utcnow() + datetime.timedelta(days=result['expires_at'])
+    else:
+        result['expires_at'] = datetime.datetime.utcnow() + datetime.timedelta(days=DEFAULT_CREDIT_EXPIRATION)
+
+    return result
+
+
+def delete_reward(id):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("DELETE FROM rewards WHERE id=%s;", [id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
+########################################################
+##################### TRANSACTIONS #####################
+########################################################
+
+
+def create_transaction(
+    user_id, amount, metadata={}, expires_at=None, memo='', amount_remaining=0, t_type='credit'
+):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute(
+        "INSERT INTO transactions (user_id, amount, amount_remaining, memo, metadata, expires_at, type) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;", (
+            user_id,
+            amount, 
+            amount_remaining,
+            memo,
+            json.dumps(metadata), 
+            expires_at,
+            t_type
+        )
+    )
+    id = cur.fetchone()[0]
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+    return id
+
+
+def fetch_transactions_for_user(id, expired=False):
+
+    conn = open_connection()
+    sql = "SELECT * FROM transactions WHERE user_id=%s"
+    params = [id]
+    if not expired:
+        sql += " AND expires_at > %s;"
+        params.append(datetime.datetime.utcnow())
+    else:
+        sql += ";"
+    users_df = pd.read_sql_query(sql, conn, params=params)
+    close_connection(conn)
+    return json.loads(users_df.to_json(orient="records"))
 
 
 ########################################################
