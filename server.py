@@ -27,8 +27,9 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
         fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
-        create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user \
-
+        create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user, \
+        update_user_referral_token, fetch_user_for_referral_token, create_referral, fetch_referral_for_referred, \
+        execute_reward, update_user_metadata, create_transaction, fetch_transactions_for_user
 from cdn import download_audio_from_cdn
 
 config = fetch_env_config()
@@ -187,6 +188,12 @@ To complete registration and verify your email, please click on this link: <a hr
         )
         response = sg.send(message)
 
+        # handle referrals
+        if data.get('referralToken') is not None:
+            referrer_id = fetch_user_for_referral_token(data['referralToken'])['id']
+            create_referral(referrer_id=referrer_id, referred_id=id, metadata={})
+
+
         return { 'id': id }, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
@@ -204,6 +211,28 @@ def api_verify_key(verify_key):
 
     try:
         verify_user_for_id(user['id'])
+
+        # check for referrals
+        referral = fetch_referral_for_referred(user['id'])
+        reward_name = 'referral_verify'
+
+        if referral is not None:
+            reward_result = execute_reward(reward_name, user['id'])
+
+            # give reward to referrer
+            if 'amount' in reward_result and reward_result['amount'] > 0:
+                create_transaction(
+                    user_id=referral['referrer_id'],
+                    amount=reward_result['amount'],
+                    amount_remaining=reward_result['amount'],
+                    expires_at=reward_result['expires_at'],
+                    memo='rewards_' + reward_name
+                )
+            # mark reward as complete
+            if 'complete' in reward_result and reward_result['complete']:
+                user['metadata']['rewards_' + reward_name] = True
+                update_user_metadata(user['id'], user['metadata'])
+
         return { 'id': user['id'] }, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
@@ -311,6 +340,46 @@ def api_update_user(current_user_id, user_id):
             data['metadata']
         )
         return { 'status': 'success' }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+# route to fetch user's referral token
+@app.route('/users/<user_id>/referral-token', methods=['GET'])
+@auth_token_required
+def api_fetch_user_referral_token(current_user_id, user_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Editing wrong user!'}), 400
+
+    try:
+        user = fetch_user(user_id)
+        if user['referral_token'] is None:
+            # set new token if not currently set
+            new_token = secrets.token_hex(48)
+            update_user_referral_token(user_id, new_token)
+            return { 'token': new_token }, 200
+        else:
+            return { 'token': user['referral_token'] } , 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+# route to fetch user's current credit balance
+@app.route('/users/<user_id>/credits', methods=['GET'])
+@auth_token_required
+def api_fetch_user_credits(current_user_id, user_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Editing wrong user!'}), 400
+
+    try:
+        transactions = fetch_transactions_for_user(user_id)
+        credit_sum = 0
+        for trxn in transactions:
+            credit_sum += trxn.get('amount_remaining', 0)
+
+        return { 'credits': credit_sum }
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
