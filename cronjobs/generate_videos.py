@@ -1,8 +1,11 @@
 import os 
 import shutil
 import sys
+import json
 from base64 import b64encode
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(PARENT_DIR)
 
 import torch
 from stable_diffusion_videos import StableDiffusionWalkPipeline
@@ -21,12 +24,14 @@ from cdn import (
     upload_video_project_to_cdn
 )
 
-from utils import fetch_env_config, get_device
+from utils import get_device
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-config = fetch_env_config()
+with open(os.path.join(PARENT_DIR, 'config.json')) as file:
+    config = json.load(file)
+
 sg = SendGridAPIClient(config['sendgrid_api_key'])
 
 
@@ -36,7 +41,7 @@ if get_device() == 'cuda':
     pipe = pipe.to("cuda")
 
 FPS = 8
-OUTPUT_DIR = 'dreams'
+OUTPUT_DIR = os.path.join(PARENT_DIR, 'dreams')
 
 def generate_videos():
     queued_projects = fetch_queued_video_projects()
@@ -65,7 +70,8 @@ def generate_videos():
 
             # download audio
             audio_bytes = download_audio_from_cdn_raw(project['user_id'], audio['cdn_id'])
-            with open(OUTPUT_DIR + '/' + audio['name'], 'wb') as file:
+            audio_path = os.path.join(OUTPUT_DIR, audio['name'])
+            with open(audio_path, 'wb') as file:
                 file.write(audio_bytes)
 
             # generate video
@@ -75,7 +81,7 @@ def generate_videos():
                 num_interpolation_steps=num_interpolation_steps,
                 height=int(images[0]['metadata']['aspect_ratio'].split(':')[1]),
                 width=int(images[0]['metadata']['aspect_ratio'].split(':')[0]),
-                audio_filepath=OUTPUT_DIR + '/' + audio['name'],
+                audio_filepath=audio_path,
                 audio_start_sec=audio_offsets[0],
                 fps=FPS,
                 batch_size=4,
