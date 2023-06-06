@@ -160,14 +160,12 @@ def delete_audio_from_cdn(user_id, audio_id):
 def upload_video_project_to_cdn(user_id, project_id, base_64):
     headers = {
         "Content-Type": "application/octet-stream",
-        # "AccessKey": ACCESS_KEY_VIDEO
-        "AccessKey": ACCESS_KEY_AUDIO
+        "AccessKey": ACCESS_KEY_VIDEO
     }
 
     # upload full video
     full_response = requests.put(
-        f'https://storage.bunnycdn.com/{STORAGE_ZONE_AUDIO}/{user_id}/{project_id}-full.mp4',
-        # f'https://storage.bunnycdn.com/{STORAGE_ZONE_VIDEO}/{user_id}/{project_id}-full.mp4',
+        f'https://storage.bunnycdn.com/{STORAGE_ZONE_VIDEO}/{user_id}/{project_id}-full.mp4',
         data=base_64,
         headers=headers
     )
