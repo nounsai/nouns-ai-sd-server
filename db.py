@@ -758,8 +758,8 @@ def create_video_project(user_id, audio_id, metadata):
     conn = open_connection()
     cur = create_cursor(conn)
     
-    sql = "INSERT INTO video_projects (user_id, audio_id, metadata) VALUES (%s, %s, %s) RETURNING id;"
-    fields = [user_id, audio_id, json.dumps(metadata)]
+    sql = "INSERT INTO video_projects (user_id, audio_id, metadata, cdn_id) VALUES (%s, %s, %s) RETURNING id;"
+    fields = [user_id, audio_id, json.dumps(metadata), str(uuid.uuid4())]
 
     cur.execute(sql, fields)
     id = cur.fetchone()[0]

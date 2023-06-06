@@ -16,4 +16,13 @@ if __name__ == '__main__':
     )
     conn.commit()
 
+    print('Adding column: video_projects.cdn_id')
+
+    cur.execute(
+        """
+        ALTER TABLE video_projects ADD COLUMN IF NOT EXISTS cdn_id VARCHAR(36);
+        """
+    )
+    conn.commit()
+
     print('finished')

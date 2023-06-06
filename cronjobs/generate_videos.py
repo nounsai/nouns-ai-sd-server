@@ -89,7 +89,7 @@ def generate_videos():
 
             # upload video to cdn
             mp4 = b64encode(open(video_path,'rb').read())
-            upload_video_project_to_cdn(project['user_id'], project['id'], mp4)
+            upload_video_project_to_cdn(project['user_id'], project['cdn_id'], mp4)
 
             # mark project generation as complete
             update_video_project_state(project['id'], 'COMPLETED')
