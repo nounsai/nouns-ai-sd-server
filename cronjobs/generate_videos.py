@@ -102,7 +102,7 @@ def generate_videos():
                 to_emails=[To(user['email'])],
                 subject='NounsAI Video Generation Success',
                 html_content=f'''
-    <p>Hello! You are receiving this email because you generated a video using our video creation tool. Here is the link to download the result: somelink</p>
+    <p>Hello! You are receiving this email because you generated a video using our video creation tool. Here is the link to download the result: <a href="https://nounsai-video.b-cdn.net/{project['user_id']}/{project['cdn_id']}-full.mp4">https://nounsai-video.b-cdn.net/{project['user_id']}/{project['cdn_id']}-full.mp4</a></p>
     '''
             )
             sg.send(message)
