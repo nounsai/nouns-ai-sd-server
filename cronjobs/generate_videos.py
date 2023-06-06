@@ -2,7 +2,7 @@ import os
 import shutil
 import sys
 from base64 import b64encode
-sys.path.append('../nouns-ai-sd-server')
+sys.path.append('../')
 
 import torch
 from stable_diffusion_videos import StableDiffusionWalkPipeline
