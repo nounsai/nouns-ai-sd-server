@@ -484,6 +484,14 @@ def fetch_image_for_user(id, user_id):
         return json.loads(images_df.to_json(orient="records"))[0]
     except Exception as e:
         return None
+    
+
+def fetch_images_for_ids(ids):
+    conn = open_connection()
+    sql = "SELECT i.* FROM images i JOIN unnest(%s::int[]) WITH ORDINALITY t(id, ord) USING (id) ORDER BY t.ord;"
+    images_df = pd.read_sql_query(sql, conn, params=['{%s}' % ','.join(map(str, ids))])
+    close_connection(conn)
+    return json.loads(images_df.to_json(orient="records"))
 
 
 def update_image_for_user(id, user_id, is_public, is_liked):
@@ -771,6 +779,17 @@ def fetch_video_projects():
     return json.loads(video_projects_df.to_json(orient="records"))
 
 
+def fetch_video_project_for_id(id):
+    conn = open_connection()
+    sql = "SELECT * FROM video_projects WHERE id=%s;"
+    project_df = pd.read_sql_query(sql, conn, params=[id])
+    close_connection(conn)
+    try:
+        return json.loads(project_df.to_json(orient="records"))[0]
+    except Exception as e:
+        return None
+
+
 def fetch_video_projects_for_user(user_id, limit, offset):
 
     conn = open_connection()
@@ -792,6 +811,18 @@ def fetch_video_project_for_user(user_id, id):
         return None
 
 
+def fetch_queued_video_projects():
+
+    conn = open_connection()
+    sql = "SELECT * FROM video_projects WHERE state like 'QUEUED';"
+    video_projects_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    try:
+        return json.loads(video_projects_df.to_json(orient="records"))
+    except Exception as e:
+        return None
+
+
 def update_video_project_for_user(user_id, id, metadata):
 
     conn = open_connection()
@@ -800,7 +831,17 @@ def update_video_project_for_user(user_id, id, metadata):
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
-    
+
+
+def update_video_project_state(id, state):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE video_projects SET state=%s WHERE id=%s;", [state, id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
 
 def delete_video_project_for_user(user_id, id):
 

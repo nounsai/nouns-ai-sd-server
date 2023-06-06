@@ -29,7 +29,8 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
         create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user, \
         update_user_referral_token, fetch_user_for_referral_token, create_referral, fetch_referral_for_referred, \
-        execute_reward, update_user_metadata, create_transaction, fetch_transactions_for_user
+        execute_reward, update_user_metadata, create_transaction, fetch_transactions_for_user, \
+        update_video_project_state, fetch_video_project_for_id
 from cdn import download_audio_from_cdn
 
 config = fetch_env_config()
@@ -1000,6 +1001,27 @@ def api_update_video_project(current_user_id, user_id, video_project_id):
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+
+@app.route('/video-projects/<video_project_id>/queue', methods=['POST'])
+@auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def queue_video_project_for_generation(current_user_id, video_project_id):
+    try:
+        project = fetch_video_project_for_id(video_project_id);
+        if project is None:
+            return { 'message': 'Video project does not exist!' }, 404
+        if project.user_id != current_user_id:
+            return { 'message': 'Wrong user!' }, 400
+
+        if project.state == 'UNFINISHED':
+            update_video_project_state(video_project_id, 'QUEUED')
+
+        return { 'status': 'success' }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
 
 
 ############################
