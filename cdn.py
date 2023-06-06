@@ -171,5 +171,5 @@ def upload_video_project_to_cdn(user_id, project_id, base_64):
     )
 
     if full_response.status_code != 201:
-        print(full_response.json)
+        print(full_response.json())
         print(f'Failed to upload video project with id {project_id} to CDN')
