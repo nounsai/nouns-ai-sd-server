@@ -24,14 +24,12 @@ from cdn import (
     upload_video_project_to_cdn
 )
 
-from utils import get_device
+from utils import fetch_env_config, get_device
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-with open(os.path.join(PARENT_DIR, 'config.json')) as file:
-    config = json.load(file)
-
+config = fetch_env_config()
 sg = SendGridAPIClient(config['sendgrid_api_key'])
 
 
