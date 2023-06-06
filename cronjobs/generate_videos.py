@@ -2,7 +2,7 @@ import os
 import shutil
 import sys
 from base64 import b64encode
-sys.path.append('../')
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 from stable_diffusion_videos import StableDiffusionWalkPipeline
