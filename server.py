@@ -1011,10 +1011,12 @@ def queue_video_project_for_generation(current_user_id, video_project_id):
         project = fetch_video_project_for_id(video_project_id);
         if project is None:
             return { 'message': 'Video project does not exist!' }, 404
-        if int(project['user_id']) != current_user_id:
+        print(project['user_id'], current_user_id)
+        print(type(project['user_id']), type(current_user_id))
+        if project['user_id'] != current_user_id:
             return { 'message': 'Wrong user!' }, 400
 
-        if project.state == 'UNFINISHED':
+        if project['state'] == 'UNFINISHED':
             update_video_project_state(video_project_id, 'QUEUED')
 
         return { 'status': 'success' }, 200
