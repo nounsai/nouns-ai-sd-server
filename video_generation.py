@@ -38,7 +38,6 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
     def __call__(
         self,
         prompt: Union[str, List[str]],
-        init_image: Union[torch.FloatTensor, PIL.Image.Image],
         init_latent,
         strength: float = 0.8,
         num_inference_steps: Optional[int] = 50,
