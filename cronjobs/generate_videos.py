@@ -43,7 +43,7 @@ if get_device() == 'cuda':
 
 FPS = config.get('video_generation_fps', 8)
 OUTPUT_DIR = os.path.join(PARENT_DIR, 'dreams')
-MAX_VIDEO_DURATION = config.get('video_generation_max_duration', 3)
+MAX_VIDEO_DURATION = config.get('video_generation_max_duration', 60)
 
 def generate_videos():
     queued_projects = fetch_queued_video_projects()
