@@ -108,10 +108,6 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
         """
         batch_size = prompt.shape[0]
 
-        print('2latent shape:', init_latent.shape)
-        print('2embedding shape:', prompt.shape)
-        print('2noise shape:', noise.shape)
-
         if strength < 0 or strength > 1:
             raise ValueError(f"The value of strength should in [0.0, 1.0] but is {strength}")
 
@@ -178,7 +174,7 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
             prompt = [prompt]
         if len(prompt) > init_latents.shape[0] and len(prompt) % init_latents.shape[0] == 0:
             # expand init_latents for batch_size
-            print('shouldnt have reached here')
+            pass
         elif len(prompt) > init_latents.shape[0] and len(prompt) % init_latents.shape[0] != 0:
             raise ValueError(
                 f"Cannot duplicate `init_image` of batch size {init_latents.shape[0]} to {len(prompt)} text prompts."
@@ -321,25 +317,16 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
 
     
     def generate_inputs(self, image_a, image_b, prompt_a, prompt_b, seed_a, seed_b, T, batch_size):
-
-        print('embedding text')
         embeds_a = self.prompt_to_embedding(prompt_a)
         embeds_b = self.prompt_to_embedding(prompt_b)
         latents_dtype = embeds_a.dtype
 
-
-        print('get latents')
         latents_a = self.vae.encode(self.pil_preprocess(image_a, latents_dtype)).latent_dist.sample().detach().to(self.device)
         latents_b = self.vae.encode(self.pil_preprocess(image_b, latents_dtype)).latent_dist.sample().detach().to(self.device)
         noise_shape = latents_a.shape
 
-        print('init noise')
         noise_a = self.init_noise(seed_a, noise_shape, latents_dtype)
         noise_b = self.init_noise(seed_b, noise_shape, latents_dtype)
-
-        print('setting:', noise_shape)
-        print('noise_a:', noise_a.shape)
-        print('latent_a:', latents_a.shape)
 
         batch_idx = 0
         embeds_batch, noise_batch, latents_batch = None, None, None
@@ -640,18 +627,12 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
                 
             # generate if not found
             if prompt_a is None or len(prompt_a) == 0:
-                # prompt_a = image_to_prompt(image_a_re)
                 prompt_a = self.image_to_caption(image_a_re)
-                print('generated prompt_a: ', prompt_a)
             if prompt_b is None or len(prompt_b) == 0:
-                # prompt_b = image_to_prompt(image_b_re)
                 prompt_b = self.image_to_caption(image_b_re)
-                print('generated prompt_b: ', prompt_b)
             
             # generate seeds
-            # if seed_a is None:
             seed_a = self.random_seed()
-            # if seed_b is None:
             seed_b = self.random_seed()
 
             self.make_clip_frames(
