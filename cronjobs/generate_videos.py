@@ -1,14 +1,11 @@
 import os 
 import shutil
 import sys
-import json
-from base64 import b64encode
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PARENT_DIR)
 
 import torch
-from stable_diffusion_videos import StableDiffusionWalkPipeline
 from diffusers import DPMSolverMultistepScheduler
 
 from db import (
@@ -21,25 +18,32 @@ from db import (
 
 from cdn import (
     download_audio_from_cdn_raw,
-    upload_video_project_to_cdn
+    upload_video_project_to_cdn,
+    download_image_from_cdn
 )
+
+from video_generation import Image2ImageWalkPipeline
 
 from utils import fetch_env_config, get_device
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
+from PIL import Image
+from io import BytesIO
+
 config = fetch_env_config()
 sg = SendGridAPIClient(config['sendgrid_api_key'])
 
 
-pipe = StableDiffusionWalkPipeline.from_pretrained("alxdfy/noggles-v21-6400-best", safety_checker=None, feature_extractor=None, torch_dtype=torch.float16)
+pipe = Image2ImageWalkPipeline.from_pretrained("alxdfy/noggles-v21-6400-best", safety_checker=None, feature_extractor=None, torch_dtype=torch.float16)
 pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
 if get_device() == 'cuda':
     pipe = pipe.to("cuda")
 
 FPS = 8
 OUTPUT_DIR = os.path.join(PARENT_DIR, 'dreams')
+MAX_VIDEO_DURATION = 3
 
 def generate_videos():
     queued_projects = fetch_queued_video_projects()
@@ -48,7 +52,25 @@ def generate_videos():
         update_video_project_state(project['id'], 'PROCESSING')
 
         try:
-            audio_offsets = [int(item) for item in project['metadata']['timestamps']]
+            # get audio offsets
+            start_offset = None
+            audio_offsets = []
+            for timestring in project['metadata']['timestamps']:
+                timestamp = int(timestring)
+
+                if start_offset is None:
+                    # first timestamp
+                    start_offset = timestamp
+                    audio_offsets.append(timestamp)
+                elif timestamp - start_offset > MAX_VIDEO_DURATION:
+                    # over the allowed video duration
+                    break 
+                else:
+                    audio_offsets.append(timestamp)
+
+            # skip if there aren't enough frames to interpolate
+            if len(audio_offsets) < 2:
+                continue
 
             # Convert seconds to frames
             num_interpolation_steps = [(b-a) * FPS for a, b in zip(audio_offsets, audio_offsets[1:])]
@@ -61,7 +83,16 @@ def generate_videos():
                 print('Error creating directory: {}'.format(str(e)))
 
             # get images for project
-            images = fetch_images_for_ids(project['metadata']['imageIds'])
+            image_records = fetch_images_for_ids(project['metadata']['imageIds'])
+            # restrict to images for allowed video duration
+            image_records = image_records[:len(audio_offsets)]
+
+            # get image contents
+            images = []
+            for record in image_records:
+                images.append(Image.open(BytesIO(
+                    download_image_from_cdn(project['user_id'], record['cdn_id'])
+                )).convert('RGB'))
 
             # get project audio
             audio = fetch_audio_for_user(project['user_id'], project['audio_id'])
@@ -74,11 +105,8 @@ def generate_videos():
 
             # generate video
             video_path = pipe.walk(
-                prompts=[image['metadata']['prompt'] for image in images],
-                seeds=[int(image['metadata']['seed']) for image in images],
+                images=images,
                 num_interpolation_steps=num_interpolation_steps,
-                height=int(images[0]['metadata']['aspect_ratio'].split(':')[1]),
-                width=int(images[0]['metadata']['aspect_ratio'].split(':')[0]),
                 audio_filepath=audio_path,
                 audio_start_sec=audio_offsets[0],
                 fps=FPS,
@@ -106,11 +134,12 @@ def generate_videos():
     '''
             )
             sg.send(message)
+            print(f"generated video for project: {project['id']}")
 
         except Exception as e:
             # reset state
             update_video_project_state(project['id'], 'QUEUED')
-            print(f'Error generating video: {e}')
+            print(f"Error generating video for project {project['id']}: {e}")
 
 if __name__ == '__main__':
     generate_videos()
