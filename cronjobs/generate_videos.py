@@ -90,7 +90,7 @@ def generate_videos():
             # get image contents
             images = []
             for record in image_records:
-                print(project)
+                print(record)
                 images.append(Image.open(BytesIO(
                     download_image_from_cdn(project['user_id'], record['cdn_id'])
                 )).convert('RGB'))
