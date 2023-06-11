@@ -91,9 +91,9 @@ def generate_videos():
             images = []
             for record in image_records:
                 print(record)
-                images.append(Image.open(BytesIO(
-                    download_image_from_cdn(project['user_id'], record['cdn_id'])
-                )).convert('RGB'))
+                image_contents = download_image_from_cdn(record['user_id'], record['cdn_id'])
+                print(image_contents is None)
+                images.append(Image.open(BytesIO(image_contents)).convert('RGB'))
 
             # get project audio
             audio = fetch_audio_for_user(project['user_id'], project['audio_id'])
