@@ -22,7 +22,7 @@ ACCESS_KEY_VIDEO = config['storage_access_key_video']
 
 # returns image (either full or thumbnail) in binary, or None if not found
 def download_image_from_cdn(user_id, image_id, image_type='full'):
-    url = f'https://{STORAGE_LOCATION_ID}.storage.bunnycdn.com/{STORAGE_ZONE_NAME}/{user_id}/{image_id}-{image_type}.png'
+    url = f'https://storage.bunnycdn.com/{STORAGE_ZONE_NAME}/{user_id}/{image_id}-{image_type}.png'
 
     headers = {
         "AccessKey": ACCESS_KEY
