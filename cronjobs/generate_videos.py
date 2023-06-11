@@ -90,9 +90,7 @@ def generate_videos():
             # get image contents
             images = []
             for record in image_records:
-                print(record)
                 image_contents = download_image_from_cdn(record['user_id'], record['cdn_id'])
-                print(image_contents is None)
                 images.append(Image.open(BytesIO(image_contents)).convert('RGB'))
 
             # get project audio

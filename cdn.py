@@ -29,8 +29,6 @@ def download_image_from_cdn(user_id, image_id, image_type='full'):
     }
 
     response = requests.get(url, headers=headers)
-    print(response.status_code)
-    print(response.json())
     # image not found
     if response.status_code != 200:
         return None
