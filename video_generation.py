@@ -19,7 +19,7 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
     captioner = pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
 
     def image_to_caption(self, image):
-        return self.captioner(image, max_new_tokens=30)[0]['generated_text']
+        return self.captioner(image, max_new_tokens=70)[0]['generated_text']
     
     def prompt_to_embedding(self, prompt):
         text_inputs = self.tokenizer(
