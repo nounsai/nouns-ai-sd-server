@@ -469,7 +469,7 @@ def api_upload_user_image(current_user_id):
         image_bytes = request.files['image'].read()
         image = Image.open(BytesIO(image_bytes)).convert('RGB')
         metadata = {
-            'base64': None,
+            'base_64': None,
             'user_uploaded': True
         }
         id = create_image(

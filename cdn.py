@@ -37,7 +37,7 @@ def download_image_from_cdn(user_id, image_id, image_type='full'):
 
 
 # uploads base 64 image to CDN, returns true if successful or false if unsuccessful
-def upload_image_to_cdn(user_id, image_id, base_64):
+def upload_image_to_cdn(user_id, image_id, base_64, thumbnail):
     headers = {
         "Content-Type": "application/octet-stream",
         "AccessKey": ACCESS_KEY
