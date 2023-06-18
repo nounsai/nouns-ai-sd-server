@@ -466,7 +466,7 @@ def api_fetch_images():
 def api_upload_user_image(current_user_id):
 
     if request.files and request.files.get('image', None) is not None:
-        image_bytes = request.files['image']
+        image_bytes = request.files['image'].read()
         image = Image.open(BytesIO(image_bytes))
         metadata = {
             'base64': None,
