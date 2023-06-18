@@ -11,6 +11,7 @@ from diffusers import DPMSolverMultistepScheduler
 from db import (
     fetch_queued_video_projects, 
     update_video_project_state,
+    fetch_video_project_for_id,
     fetch_images_for_ids,
     fetch_audio_for_user,
     fetch_user
@@ -48,6 +49,10 @@ MAX_VIDEO_DURATION = config.get('video_generation_max_duration', 60)
 def generate_videos():
     queued_projects = fetch_queued_video_projects()
     for project in queued_projects:
+        # check that project isn't already being handled
+        db_video_project = fetch_video_project_for_id(project['id'])
+        if db_video_project is None or db_video_project['state'] == 'PROCESSING':
+            continue
         # update state
         update_video_project_state(project['id'], 'PROCESSING')
 
