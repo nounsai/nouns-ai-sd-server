@@ -480,7 +480,8 @@ def api_upload_user_image(current_user_id):
             metadata,
             False,
             True,
-            -1
+            -1,
+            use_thread=False
         )
         db_image = fetch_image(id)
         return db_image, 200

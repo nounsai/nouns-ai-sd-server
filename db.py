@@ -390,7 +390,7 @@ def fetch_transactions_for_user(id, expired=False):
 ########################################################
 
 
-def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, is_public=False, is_liked=False, parent_id=0):
+def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, is_public=False, is_liked=False, parent_id=0, use_thread=True):
     image_cdn_uuid = str(uuid.uuid4())
 
     # save to database
@@ -410,9 +410,17 @@ def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, 
     conn.commit()
     close_connection(conn)
 
-    # Start a new thread for the slow save operation
-    save_thread = threading.Thread(target=upload_image_to_cdn, args=(user_id, image_cdn_uuid, image_byte_data, thumbnail_byte_data))
-    save_thread.start()
+    if use_thread:
+        # Start a new thread for the slow save operation
+        save_thread = threading.Thread(target=upload_image_to_cdn, args=(user_id, image_cdn_uuid, image_byte_data, thumbnail_byte_data))
+        save_thread.start()
+    else:
+        upload_image_to_cdn(
+            user_id,
+            image_cdn_uuid,
+            image_byte_data,
+            thumbnail_byte_data
+        )
 
     return id
 
