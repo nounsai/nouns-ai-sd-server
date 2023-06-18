@@ -30,7 +30,7 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user, \
         update_user_referral_token, fetch_user_for_referral_token, create_referral, fetch_referral_for_referred, \
         execute_reward, update_user_metadata, create_transaction, fetch_transactions_for_user, \
-        update_video_project_state, fetch_video_project_for_id
+        update_video_project_state, fetch_video_project_for_id, fetch_image
 from cdn import download_audio_from_cdn
 
 config = fetch_env_config()
@@ -458,6 +458,35 @@ def api_fetch_images():
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+
+@app.route('/user-images', methods=['POST'])
+@auth_token_required
+@limiter.limit('32 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_upload_user_image(current_user_id):
+
+    if request.files and request.files.get('image', None) is not None:
+        image_bytes = request.files['image']
+        image = Image.open(BytesIO(image_bytes))
+        metadata = {
+            'base64': None,
+            'user_uploaded': True
+        }
+        id = create_image(
+            current_user_id,
+            image_bytes,
+            thumbnail_bytes_for_image(image),
+            (hashlib.sha256(image_bytes)).hexdigest(),
+            metadata,
+            False,
+            True,
+            -1
+        )
+        db_image = fetch_image(id)
+        return db_image, 200
+    else:
+        return { 'error': 'No file detected' }, 400
+
 
 @app.route('/users/<user_id>/images', methods=['GET'])
 @auth_token_required

@@ -70,6 +70,8 @@ def generate_videos():
 
             # skip if there aren't enough frames to interpolate
             if len(audio_offsets) < 2:
+                # update state
+                update_video_project_state(project['id'], 'ERROR')
                 continue
 
             # Convert seconds to frames
