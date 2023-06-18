@@ -27,7 +27,7 @@ _Note: This utilizes `/etc/systemd/system/nouns-ai-sd-server.service`_
 # Database
 
 ## Users
-```
+```sql
 CREATE TABLE users (
     id INT GENERATED ALWAYS AS IDENTITY,
     email VARCHAR(128) NOT NULL UNIQUE,
@@ -42,7 +42,7 @@ CREATE TABLE users (
 ```
 
 ## Password Resets
-```
+```sql
 CREATE TABLE password_recovery (
     id INT GENERATED ALWAYS AS IDENTITY,
     user_id INT NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE password_recovery (
 ```
 
 ## Images
-```
+```sql
 CREATE TABLE images (
     id INT GENERATED ALWAYS AS IDENTITY,
     user_id INT NOT NULL,
@@ -73,12 +73,12 @@ CREATE TABLE images (
 ```
 
 ## Audio
-```
+```sql
 CREATE TABLE audio (
     id INT GENERATED ALWAYS AS IDENTITY,
     user_id INT NOT NULL,
     name VARCHAR(256) NOT NULL,
-    url VARCHAR(256) NOT NULL,
+    cdn_id VARCHAR(256) NOT NULL,
     size BIGINT NOT NULL,
     metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -90,7 +90,7 @@ CREATE TABLE audio (
 ```
 
 ## Videos
-```
+```sql
 CREATE TABLE videos (
     id INT GENERATED ALWAYS AS IDENTITY,
     user_id INT NOT NULL,
@@ -103,7 +103,7 @@ CREATE TABLE videos (
 ```
 
 ## Links
-```
+```sql
 CREATE TABLE links (
     id INT GENERATED ALWAYS AS IDENTITY,
     user_id INT NOT NULL,
@@ -116,7 +116,7 @@ CREATE TABLE links (
 
 ## Models
 
-```
+```sql
 CREATE TABLE models (
     id INT GENERATED ALWAYS AS IDENTITY,
     model_id VARCHAR (128) NOT NULL UNIQUE,
@@ -127,7 +127,7 @@ CREATE TABLE models (
 
 ## API Hosts
 
-```
+```sql
 CREATE TABLE api_hosts (
     id INT GENERATED ALWAYS AS IDENTITY,
     address VARCHAR (256) NOT NULL UNIQUE,
@@ -136,7 +136,7 @@ CREATE TABLE api_hosts (
 ```
 
 ## Referrals
-```
+```sql
 CREATE TABLE referrals (
     id INT GENERATED ALWAYS AS IDENTITY,
     referrer_id INT NOT NULL,
@@ -151,7 +151,7 @@ CREATE TABLE referrals (
 ```
 
 ## Rewards
-```
+```sql
 CREATE TABLE rewards (
     id INT GENERATED ALWAYS AS IDENTITY,
     name VARCHAR (128) NOT NULL,
@@ -164,7 +164,7 @@ CREATE TABLE rewards (
 ```
 
 ## Transactions
-```
+```sql
 CREATE TABLE transactions (
     id INT GENERATED ALWAYS AS IDENTITY,
     metadata JSON NOT NULL,
@@ -178,5 +178,21 @@ CREATE TABLE transactions (
     memo VARCHAR (256) NOT NULL,
     PRIMARY KEY(id),
     CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+## Video Projects
+```sql
+CREATE TABLE video_projects (
+  id INT GENERATED ALWAYS AS IDENTITY,
+  user_id INT NOT NULL,
+  audio_id INT NOT NULL REFERENCES audio(id) ON DELETE CASCADE,
+  metadata JSON NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  state VARCHAR(36) DEFAULT 'UNFINISHED',
+  cdn_id VARCHAR(256) NOT NULL,
+  PRIMARY KEY(id),
+  CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
