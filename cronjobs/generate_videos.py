@@ -1,6 +1,8 @@
 import os 
 import shutil
 import sys
+import math
+from functools import reduce
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PARENT_DIR)
@@ -61,7 +63,7 @@ def generate_videos():
             start_offset = None
             audio_offsets = []
             for timestring in project['metadata']['timestamps']:
-                timestamp = int(timestring)
+                timestamp = float(timestring)
 
                 if start_offset is None:
                     # first timestamp
@@ -80,7 +82,7 @@ def generate_videos():
                 continue
 
             # Convert seconds to frames
-            num_interpolation_steps = [(b-a) * FPS for a, b in zip(audio_offsets, audio_offsets[1:])]
+            num_interpolation_steps = [math.ceil(b-a) * FPS for a, b in zip(audio_offsets, audio_offsets[1:])]
 
             # reset dreams directory
             try:
@@ -109,6 +111,9 @@ def generate_videos():
             with open(audio_path, 'wb') as file:
                 file.write(audio_bytes)
 
+            # get batch size based on interpolation steps
+            batch_size = reduce(math.gcd, num_interpolation_steps)
+
             # generate video
             video_path = pipe.walk(
                 images=images,
@@ -116,7 +121,7 @@ def generate_videos():
                 audio_filepath=audio_path,
                 audio_start_sec=audio_offsets[0],
                 fps=FPS,
-                batch_size=4,
+                batch_size=batch_size,
                 output_dir='./' + OUTPUT_DIR,
                 name=None,
             )
