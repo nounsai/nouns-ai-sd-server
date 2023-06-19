@@ -822,7 +822,7 @@ def fetch_video_project_for_user(user_id, id):
 def fetch_queued_video_projects():
 
     conn = open_connection()
-    sql = "SELECT * FROM video_projects WHERE state like 'QUEUED';"
+    sql = "SELECT * FROM video_projects WHERE state like 'QUEUED' ORDER BY updated_at desc;"
     video_projects_df = pd.read_sql_query(sql, conn)
     close_connection(conn)
     try:
