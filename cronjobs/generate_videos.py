@@ -2,6 +2,7 @@ import os
 import shutil
 import sys
 import math
+from functools import reduce
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PARENT_DIR)
@@ -111,7 +112,7 @@ def generate_videos():
                 file.write(audio_bytes)
 
             # get batch size based on interpolation steps
-            batch_size = math.gcd(*num_interpolation_steps)
+            batch_size = reduce(math.gcd, num_interpolation_steps)
 
             # generate video
             video_path = pipe.walk(
