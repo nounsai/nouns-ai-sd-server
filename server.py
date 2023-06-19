@@ -437,6 +437,7 @@ def api_create_image(current_user_id):
     # TODO: Make this return image metadata.
     response = make_response(serve_pil_image(images[0]))
     response.headers['X-Image-Id'] = id
+    response.headers['Access-Control-Expose-Headers'] = 'X-Image-Id'
     return response
 
 @app.route('/images', methods=['GET'])
