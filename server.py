@@ -1048,7 +1048,7 @@ def queue_video_project_for_generation(current_user_id, video_project_id):
 
         if project['state'] != 'PROCESSING' and project['state'] != 'QUEUED':
             # delete previous project, if present
-            delete_video_project_from_cdn(project['user_id'], project['id'])
+            delete_video_project_from_cdn(project['user_id'], project['cdn_id'])
             # update cdn id
             update_video_project_cdn_id(project['id'], str(uuid.uuid4()))
             # queue video
