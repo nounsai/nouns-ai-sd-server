@@ -149,7 +149,7 @@ def generate_videos():
 
         except Exception as e:
             # reset state
-            update_video_project_state(project['id'], 'QUEUED')
+            update_video_project_state(project['id'], 'ERROR')
             print(f"Error generating video for project {project['id']}: {e}")
 
 if __name__ == '__main__':
