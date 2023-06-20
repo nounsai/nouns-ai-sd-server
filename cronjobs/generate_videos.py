@@ -114,9 +114,13 @@ def generate_videos():
             # get batch size based on interpolation steps
             batch_size = reduce(math.gcd, num_interpolation_steps)
 
+            # get any custom prompts
+            prompts = project['metadata'].get('prompts', None)
+
             # generate video
             video_path = pipe.walk(
                 images=images,
+                prompts=prompts,
                 num_interpolation_steps=num_interpolation_steps,
                 audio_filepath=audio_path,
                 audio_start_sec=audio_offsets[0],
