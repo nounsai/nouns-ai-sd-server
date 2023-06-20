@@ -172,3 +172,18 @@ def upload_video_project_to_cdn(user_id, project_id, base_64):
     if full_response.status_code != 201:
         print(full_response.json())
         print(f'Failed to upload video project with id {project_id} to CDN')
+
+# deletes video from CDN, returns true if successful or false if unsuccessful
+def delete_video_project_from_cdn(user_id, project_id):
+    url = f'https://storage.bunnycdn.com/{STORAGE_ZONE_VIDEO}/{user_id}/{project_id}-full.mp4'
+    headers = {
+        "AccessKey": ACCESS_KEY_VIDEO
+    }
+
+    
+    response = requests.delete(url, headers=headers)
+
+    if response.status_code != 200:
+        return False
+
+    return True
