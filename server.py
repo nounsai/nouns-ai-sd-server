@@ -7,6 +7,7 @@ import hashlib
 import datetime
 import secrets
 import requests
+import uuid
 
 from PIL import Image
 from io import BytesIO 
@@ -30,8 +31,8 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user, \
         update_user_referral_token, fetch_user_for_referral_token, create_referral, fetch_referral_for_referred, \
         execute_reward, update_user_metadata, create_transaction, fetch_transactions_for_user, \
-        update_video_project_state, fetch_video_project_for_id, fetch_image
-from cdn import download_audio_from_cdn
+        update_video_project_state, fetch_video_project_for_id, fetch_image, update_video_project_cdn_id
+from cdn import download_audio_from_cdn, delete_video_project_from_cdn
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
@@ -1045,7 +1046,12 @@ def queue_video_project_for_generation(current_user_id, video_project_id):
         if project['user_id'] != int(current_user_id):
             return { 'message': 'Wrong user!' }, 400
 
-        if project['state'] == 'UNFINISHED':
+        if project['state'] != 'PROCESSING' and project['state'] != 'QUEUED':
+            # delete previous project, if present
+            delete_video_project_from_cdn(project['user_id'], project['cdn_id'])
+            # update cdn id
+            update_video_project_cdn_id(project['id'], str(uuid.uuid4()))
+            # queue video
             update_video_project_state(video_project_id, 'QUEUED')
 
         return { 'status': 'success' }, 200

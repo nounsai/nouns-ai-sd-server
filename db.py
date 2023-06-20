@@ -851,6 +851,16 @@ def update_video_project_state(id, state):
     close_connection(conn)
 
 
+def update_video_project_cdn_id(id, cdn_id):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE video_projects SET cdn_id=%s WHERE id=%s;", [cdn_id, id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+
 def delete_video_project_for_user(user_id, id):
 
     conn = open_connection()
