@@ -534,8 +534,11 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
             str: The resulting video filepath. This video includes all sub directories' video clips.
         """
         # 0. Default height and width to unet
-        height = images[0].size[1] or self.unet.config.sample_size * self.vae_scale_factor
-        width = images[0].size[0] or self.unet.config.sample_size * self.vae_scale_factor
+        first_image_height = images[0].size[1]
+        first_image_width = images[0].size[0]
+        # scale to a multiple of 32
+        height = first_image_height - first_image_height % 32 or self.unet.config.sample_size * self.vae_scale_factor
+        width = first_image_width - first_image_width % 32 or self.unet.config.sample_size * self.vae_scale_factor
 
         output_path = Path(output_dir)
 
