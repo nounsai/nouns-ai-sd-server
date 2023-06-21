@@ -348,6 +348,13 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
             del embeds_batch, noise_batch, latents_batch
             torch.cuda.empty_cache()
             embeds_batch, noise_batch, latents_batch = None, None, None
+    
+    def get_small_divisor(self, num, max):
+        candidates = list(range(1, max + 1, 1))
+        candidates.reverse()
+        for candidate in candidates:
+            if num % candidate == 0:
+                return candidate
 
     def make_clip_frames(
         self,
@@ -379,6 +386,12 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
         T = T if T is not None else np.linspace(0.0, 1.0, num_interpolation_steps)
         if T.shape[0] != num_interpolation_steps:
             raise ValueError(f"Unexpected T shape, got {T.shape}, expected dim 0 to be {num_interpolation_steps}")
+        
+        capped_batch_size = batch_size
+        if num_interpolation_steps > batch_size:
+            capped_batch_size = self.get_small_divisor(num_interpolation_steps, batch_size)
+        
+        print('using capped batch size:', capped_batch_size)
 
         batch_generator = self.generate_inputs(
             image_a,
@@ -389,7 +402,7 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
             seed_b,
             # (1, self.unet.in_channels, height // 8, width // 8),
             T[skip:],
-            batch_size,
+            capped_batch_size,
         )
 
         frame_index = skip
@@ -403,14 +416,14 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
                 num_inference_steps = num_inference_steps
             )['images']
 
-            print(f'generated: {(batch_idx + 1) * batch_size} / {len(T)}')
+            print(f'generated: {(batch_idx + 1) * capped_batch_size} / {len(T)}')
 
             for image_idx, image in enumerate(outputs):
                 if frame_index == skip and image_idx == 0:
                     frame_filepath = save_path / (f"frame%06d{image_file_ext}" % frame_index)
                     image_a.save(frame_filepath)
                     frame_index += 1
-                elif (batch_idx + 1) * batch_size == len(T) and image_idx + 1 == len(outputs):
+                elif (batch_idx + 1) * capped_batch_size == len(T) and image_idx + 1 == len(outputs):
                     frame_filepath = save_path / (f"frame%06d{image_file_ext}" % (frame_index))
                     image_b.save(frame_filepath)
                     frame_index += 1

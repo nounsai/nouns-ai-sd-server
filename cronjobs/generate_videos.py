@@ -48,14 +48,7 @@ if get_device() == 'cuda':
 FPS = config.get('video_generation_fps', 8)
 OUTPUT_DIR = os.path.join(PARENT_DIR, 'dreams')
 MAX_VIDEO_DURATION = config.get('video_generation_max_duration', 60)
-MAX_BATCH_SIZE = 20
-
-def get_small_divisor(num):
-    candidates = list(range(1, MAX_BATCH_SIZE + 1, 1))
-    candidates.reverse()
-    for candidate in candidates:
-        if num % candidate == 0:
-            return candidate
+MAX_BATCH_SIZE = 15
 
 def generate_videos():
     queued_projects = fetch_queued_video_projects()
@@ -123,12 +116,12 @@ def generate_videos():
                 file.write(audio_bytes)
 
             # get batch size based on interpolation steps
-            batch_size = reduce(math.gcd, num_interpolation_steps)
+            # batch_size = reduce(math.gcd, num_interpolation_steps)
 
             # constrain batch size to <= 10
-            if batch_size > MAX_BATCH_SIZE:
-                batch_size = get_small_divisor(batch_size)
-            print('using batch-size:', batch_size)
+            # if batch_size > MAX_BATCH_SIZE:
+            #     batch_size = get_small_divisor(batch_size)
+            # print('using batch-size:', batch_size)
             print('using fps:', FPS)
             # get any custom prompts
             prompts = project['metadata'].get('prompts', None)
@@ -141,7 +134,7 @@ def generate_videos():
                 audio_filepath=audio_path,
                 audio_start_sec=audio_offsets[0],
                 fps=FPS,
-                batch_size=batch_size,
+                batch_size=MAX_BATCH_SIZE,
                 output_dir='./' + OUTPUT_DIR,
                 name=None,
             )
