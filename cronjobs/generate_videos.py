@@ -50,7 +50,7 @@ OUTPUT_DIR = os.path.join(PARENT_DIR, 'dreams')
 MAX_VIDEO_DURATION = config.get('video_generation_max_duration', 60)
 
 def get_small_divisor(num):
-    candidates = list(range(1, 11, 1))
+    candidates = list(range(1, 17, 1))
     candidates.reverse()
     for candidate in candidates:
         if num % candidate == 0:
@@ -125,7 +125,7 @@ def generate_videos():
             batch_size = reduce(math.gcd, num_interpolation_steps)
 
             # constrain batch size to <= 10
-            if batch_size > 10:
+            if batch_size > 16:
                 batch_size = get_small_divisor(batch_size)
 
             # get any custom prompts
