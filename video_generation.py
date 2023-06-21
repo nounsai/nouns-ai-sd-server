@@ -403,6 +403,8 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
                 num_inference_steps = num_inference_steps
             )['images']
 
+            print(f'generated: {(batch_idx + 1) * batch_size} / {len(T)}')
+
             for image_idx, image in enumerate(outputs):
                 if frame_index == skip and image_idx == 0:
                     frame_filepath = save_path / (f"frame%06d{image_file_ext}" % frame_index)
