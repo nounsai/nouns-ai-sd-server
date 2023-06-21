@@ -3,6 +3,7 @@ import shutil
 import sys
 import math
 from functools import reduce
+import traceback
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PARENT_DIR)
@@ -47,6 +48,13 @@ if get_device() == 'cuda':
 FPS = config.get('video_generation_fps', 8)
 OUTPUT_DIR = os.path.join(PARENT_DIR, 'dreams')
 MAX_VIDEO_DURATION = config.get('video_generation_max_duration', 60)
+
+def get_small_divisor(num):
+    candidates = list(range(1, 11, 1))
+    candidates.reverse()
+    for candidate in candidates:
+        if num % candidate == 0:
+            return candidate
 
 def generate_videos():
     queued_projects = fetch_queued_video_projects()
@@ -116,6 +124,10 @@ def generate_videos():
             # get batch size based on interpolation steps
             batch_size = reduce(math.gcd, num_interpolation_steps)
 
+            # constrain batch size to <= 10
+            if batch_size > 10:
+                batch_size = get_small_divisor(batch_size)
+
             # get any custom prompts
             prompts = project['metadata'].get('prompts', None)
 
@@ -154,6 +166,7 @@ def generate_videos():
             print(f"generated video for project: {project['id']}")
 
         except Exception as e:
+            print(traceback.format_exc())
             # reset state
             update_video_project_state(project['id'], 'ERROR')
             print(f"Error generating video for project {project['id']}: {e}")
