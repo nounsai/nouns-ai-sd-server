@@ -626,8 +626,8 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
             audio_duration = num_step / fps
 
             # resize images
-            image_a_re = image_a.resize((width, height))
-            image_b_re = image_b.resize((width, height))
+            image_a_re = image_a.resize((width, height), resample=PIL.Image.LANCZOS)
+            image_b_re = image_b.resize((width, height), resample=PIL.Image.LANCZOS)
 
             # get prompts
             if prompts is not None:
