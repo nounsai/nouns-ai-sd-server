@@ -50,6 +50,12 @@ OUTPUT_DIR = os.path.join(PARENT_DIR, 'dreams')
 MAX_VIDEO_DURATION = config.get('video_generation_max_duration', 60)
 MAX_BATCH_SIZE = 15
 
+def preprocess_steps(steps):
+    if steps == 1:
+        return 2
+    else:
+        return steps - steps % 2
+
 def generate_videos():
     queued_projects = fetch_queued_video_projects()
     for project in queued_projects:
@@ -85,7 +91,7 @@ def generate_videos():
 
             # Convert seconds to frames
             num_interpolation_steps = [
-                math.ceil((b-a) * FPS) for a, b in zip(audio_offsets, audio_offsets[1:])
+                preprocess_steps(math.ceil((b-a) * FPS)) for a, b in zip(audio_offsets, audio_offsets[1:])
             ]
 
             # reset dreams directory
