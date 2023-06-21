@@ -82,7 +82,9 @@ def generate_videos():
                 continue
 
             # Convert seconds to frames
-            num_interpolation_steps = [math.ceil(b-a) * FPS for a, b in zip(audio_offsets, audio_offsets[1:])]
+            num_interpolation_steps = [
+                math.ceil((b-a) * FPS) for a, b in zip(audio_offsets, audio_offsets[1:])
+            ]
 
             # reset dreams directory
             try:
