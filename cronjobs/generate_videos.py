@@ -169,8 +169,8 @@ def generate_videos():
             sg.send(message)
             print(f"generated video for project: {project['id']}")
 
-            processing_time = str(timedelta(seconds=(datetime.now() - start_time).total_seconds()))
-            video_length = str(timedelta(seconds=(audio_offsets[-1] - audio_offsets[0])))
+            processing_time = str(timedelta(seconds=round((datetime.now() - start_time).total_seconds())))
+            video_length = str(timedelta(seconds=round(audio_offsets[-1] - audio_offsets[0])))
 
             send_discord_webhook(
                 url=WEBHOOK_URL,
@@ -202,7 +202,7 @@ def generate_videos():
 
         except Exception as e:
             print(traceback.format_exc())
-            processing_time = str(timedelta(seconds=(datetime.now() - start_time).total_seconds()))
+            processing_time = str(timedelta(seconds=round((datetime.now() - start_time).total_seconds())))
             update_video_project_state(project['id'], 'ERROR')
             print(f"Error generating video for project {project['id']}: {e}")
 
