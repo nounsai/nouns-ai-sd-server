@@ -638,29 +638,29 @@ def api_fetch_audios_for_user(current_user_id, user_id):
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
-@app.route('/users/<user_id>/audios/<audio_id>', methods=['GET'])
-@auth_token_required
-@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
-def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
+# @app.route('/users/<user_id>/audios/<audio_id>', methods=['GET'])
+# @auth_token_required
+# @limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+# def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
 
-    if user_id != current_user_id:
-        return jsonify({'message': 'Wrong user!'}), 400
+#     if user_id != current_user_id:
+#         return jsonify({'message': 'Wrong user!'}), 400
     
-    try:
-        audio = fetch_audio_for_user(current_user_id, audio_id)
+#     try:
+#         audio = fetch_audio_for_user(current_user_id, audio_id)
         
-        if audio is not None:
-            audioData = download_audio_from_cdn(user_id, audio['cdn_id'])
-            if audioData == None:
-                raise Exception("Audio not found in CDN")    
-            audio['data'] = audioData
+#         if audio is not None:
+#             audioData = download_audio_from_cdn(user_id, audio['cdn_id'])
+#             if audioData == None:
+#                 raise Exception("Audio not found in CDN")    
+#             audio['data'] = audioData
     
-            return audio, 200
-        else:
-            return { 'error': "Audio not found" }, 404
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+#             return audio, 200
+#         else:
+#             return { 'error': "Audio not found" }, 404
+#     except Exception as e:
+#         print("Internal server error: {}".format(str(e)))
+#         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['PUT'])
 @auth_token_required
