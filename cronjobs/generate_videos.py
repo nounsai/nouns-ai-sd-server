@@ -4,6 +4,7 @@ import sys
 import math
 from functools import reduce
 import traceback
+from datetime import datetime
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PARENT_DIR)
@@ -28,7 +29,7 @@ from cdn import (
 
 from video_generation import Image2ImageWalkPipeline
 
-from utils import fetch_env_config, get_device
+from utils import fetch_env_config, get_device, send_discord_webhook
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
@@ -49,6 +50,7 @@ FPS = config.get('video_generation_fps', 8)
 OUTPUT_DIR = os.path.join(PARENT_DIR, 'dreams')
 MAX_VIDEO_DURATION = config.get('video_generation_max_duration', 60)
 MAX_BATCH_SIZE = config.get('video_generation_max_batch_size', 5)
+WEBHOOK_URL = config.get('video_generation_discord_webhook', None)
 
 def preprocess_steps(steps):
     if steps == 1:
@@ -65,6 +67,7 @@ def generate_videos():
             continue
         # update state
         update_video_project_state(project['id'], 'PROCESSING')
+        start_time = datetime.now()
 
         try:
             # get audio offsets
@@ -166,11 +169,62 @@ def generate_videos():
             sg.send(message)
             print(f"generated video for project: {project['id']}")
 
+            processing_time = (datetime.now() - start_time).total_seconds() / 60
+
+            send_discord_webhook(
+                url=WEBHOOK_URL,
+                embeds=[
+                    {
+                        'title': 'Video COMPLETED',
+                        'description': f"https://nounsai-video.b-cdn.net/{project['user_id']}/{project['cdn_id']}-full.mp4",
+                        'fields': [
+                            {
+                                'name': 'Time',
+                                'value': str(round(processing_time, 2)) + ' min'
+                            },
+                            {
+                                'name': 'User id',
+                                'value': str(project['user_id'])
+                            },
+                            {
+                                'name': 'Project id',
+                                'value': str(project['id'])
+                            }
+                        ]
+                    }
+                ]
+            )
+
         except Exception as e:
             print(traceback.format_exc())
-            # reset state
+            processing_time = (datetime.now() - start_time).total_seconds() / 60
             update_video_project_state(project['id'], 'ERROR')
             print(f"Error generating video for project {project['id']}: {e}")
+
+            send_discord_webhook(
+                url=WEBHOOK_URL,
+                embeds=[
+                    {
+                        'title': 'Video ERROR',
+                        'description': f"```{traceback.format_exc()}```",
+                        'fields': [
+                            {
+                                'name': 'Time',
+                                'value': str(round(processing_time, 2)) + ' min'
+                            },
+                            {
+                                'name': 'User id',
+                                'value': str(project['user_id'])
+                            },
+                            {
+                                'name': 'Project id',
+                                'value': str(project['id'])
+                            }
+                        ]
+                    }
+                ]
+            )
+            # reset state
 
 if __name__ == '__main__':
     generate_videos()
