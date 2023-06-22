@@ -179,8 +179,12 @@ def generate_videos():
                         'description': f"https://nounsai-video.b-cdn.net/{project['user_id']}/{project['cdn_id']}-full.mp4",
                         'fields': [
                             {
-                                'name': 'Time',
+                                'name': 'Time to process',
                                 'value': str(round(processing_time, 2)) + ' min'
+                            },
+                            {
+                                'name': 'Video Length',
+                                'value': str((round(audio_offsets[-1] - audio_offsets[0]) / 60, 2)) + ' min'
                             },
                             {
                                 'name': 'User id',
@@ -209,7 +213,7 @@ def generate_videos():
                         'description': f"```{traceback.format_exc()}```",
                         'fields': [
                             {
-                                'name': 'Time',
+                                'name': 'Time to process',
                                 'value': str(round(processing_time, 2)) + ' min'
                             },
                             {
