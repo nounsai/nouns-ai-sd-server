@@ -806,9 +806,9 @@ def fetch_video_projects_for_user(user_id, limit, offset):
             projects.*, audio.cdn_id as audio_cdn_id
         FROM 
             video_projects as projects
-        WHERE projects.user_id=%s 
         INNER JOIN 
             audio on projects.audio_id = audio.id
+        WHERE projects.user_id=%s 
         ORDER BY 
             projects.id DESC 
         LIMIT %s 
