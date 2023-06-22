@@ -803,7 +803,7 @@ def fetch_video_projects_for_user(user_id, limit, offset):
     conn = open_connection()
     sql = """
         SELECT 
-            projects.*, audio.cdn_id as audio_cdn_id
+            projects.*, audio.cdn_id as audio_cdn_id, audio.name as audio_name
         FROM 
             video_projects as projects
         INNER JOIN 
