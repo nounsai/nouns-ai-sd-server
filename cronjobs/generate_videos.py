@@ -229,7 +229,19 @@ def generate_videos():
                     }
                 ]
             )
-            # reset state
+
+            # send failure email
+            user = fetch_user(project['user_id'])
+
+            message = Mail(
+                from_email='admin@nounsai.wtf',
+                to_emails=[To(user['email'])],
+                subject='NounsAI Video Generation Failure!',
+                html_content=f'''
+                <p>Hello! You are receiving this email because a video you made using our video creation tool unfortunately failed to be generated. This could be due to many factors, but try using smaller images (e.g. 512x512) or double check that the audio file is fine. You can return to <a href="https://nounsai.wtf">nounsai.wtf</a> to make any changes and re-generate the video.</p>
+                '''
+            )
+            sg.send(message)
 
 if __name__ == '__main__':
     generate_videos()
