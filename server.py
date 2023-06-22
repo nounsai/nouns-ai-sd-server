@@ -31,6 +31,9 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
+AUDIO_DICT = {}
+from middleware import txt_to_audio, setup_audio
+AUDIO_DICT = setup_audio()
 if config['server_type'] == 'gpu':
     from middleware import inference, setup_pipelines
     PIPELINE_DICT = setup_pipelines()
@@ -384,6 +387,15 @@ def api_fetch_user_credits(current_user_id, user_id):
 #############################
 ########## IMAGES ###########
 #############################
+
+@app.route('/audios', methods=['GET'])
+def api_create_audio():
+    try:
+        txt_to_audio(AUDIO_DICT)
+        return "test"
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 
 @app.route('/images', methods=['POST'])
