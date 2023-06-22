@@ -4,7 +4,7 @@ import sys
 import math
 from functools import reduce
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PARENT_DIR)
@@ -169,7 +169,8 @@ def generate_videos():
             sg.send(message)
             print(f"generated video for project: {project['id']}")
 
-            processing_time = (datetime.now() - start_time).total_seconds() / 60
+            processing_time = str(timedelta(seconds=(datetime.now() - start_time).total_seconds()))
+            video_length = str(timedelta(seconds=(audio_offsets[-1] - audio_offsets[0])))
 
             send_discord_webhook(
                 url=WEBHOOK_URL,
@@ -180,11 +181,11 @@ def generate_videos():
                         'fields': [
                             {
                                 'name': 'Time to process',
-                                'value': str(round(processing_time, 2)) + ' min'
+                                'value': processing_time
                             },
                             {
                                 'name': 'Video Length',
-                                'value': str((round(audio_offsets[-1] - audio_offsets[0]) / 60, 2)) + ' min'
+                                'value': video_length
                             },
                             {
                                 'name': 'User id',
@@ -201,7 +202,7 @@ def generate_videos():
 
         except Exception as e:
             print(traceback.format_exc())
-            processing_time = (datetime.now() - start_time).total_seconds() / 60
+            processing_time = str(timedelta(seconds=(datetime.now() - start_time).total_seconds()))
             update_video_project_state(project['id'], 'ERROR')
             print(f"Error generating video for project {project['id']}: {e}")
 
@@ -214,7 +215,7 @@ def generate_videos():
                         'fields': [
                             {
                                 'name': 'Time to process',
-                                'value': str(round(processing_time, 2)) + ' min'
+                                'value': processing_time
                             },
                             {
                                 'name': 'User id',
