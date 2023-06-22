@@ -801,7 +801,19 @@ def fetch_video_project_for_id(id):
 def fetch_video_projects_for_user(user_id, limit, offset):
 
     conn = open_connection()
-    sql = "SELECT * FROM video_projects where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
+    sql = """
+        SELECT 
+            projects.*, audio.cdn_id as audio_cdn_id
+        FROM 
+            video_projects as projects
+        WHERE projects.user_id=%s 
+        INNER JOIN 
+            audio on projects.audio_id = audio.id
+        ORDER BY 
+            projects.id DESC 
+        LIMIT %s 
+        OFFSET %s;
+    """
     video_projects_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
     close_connection(conn)
     return json.loads(video_projects_df.to_json(orient="records"))
