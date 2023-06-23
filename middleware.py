@@ -119,7 +119,7 @@ def setup_audio():
     if torch.cuda.is_available():
         model = CustomMusicGen.get_pretrained('small', device='cuda')
         
-        model.set_generation_params(duration=3)
+        model.set_generation_params(duration=5)
         AUDIO_DICT['Text to Audio']['musicgen'] = model
 
     return AUDIO_DICT
@@ -132,7 +132,7 @@ def txt_to_audio(audio_pipeline, text):
     buffer = io.BytesIO()
     model = audio_pipeline['Text to Audio']['musicgen']
     res = model.generate([text], progress=True)
-    tensor_to_audio_bytes(buffer, res[0], model.sample_rate, format='mp3')
+    tensor_to_audio_bytes(buffer, res[0].cpu(), model.sample_rate, format='mp3')
     return buffer.read()
     
 
