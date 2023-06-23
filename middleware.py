@@ -64,17 +64,17 @@ def _no_validate_model_kwargs(self, model_kwargs):
 def setup_pipelines():
     GenerationMixin._validate_model_kwargs = _no_validate_model_kwargs
     
-    # control_net_canny = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-canny-diffusers", torch_dtype=torch.float16)
+    control_net_canny = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-canny-diffusers", torch_dtype=torch.float16)
     PIPELINE_DICT['Image Processor'] = AutoImageProcessor.from_pretrained("openmmlab/upernet-convnext-small")
     PIPELINE_DICT['Image Segmentor'] = UperNetForSemanticSegmentation.from_pretrained("openmmlab/upernet-convnext-small")
-    # control_net_seg = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=torch.float16)
+    control_net_seg = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=torch.float16)
     control_net_seg_inpaint = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-seg', torch_dtype=torch.float16)
-    # PIPELINE_DICT['Depth Estimator'] = pipeline('depth-estimation')
-    # control_net_depth = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=torch.float16)
-    # CONTROL_NET_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
+    PIPELINE_DICT['Depth Estimator'] = pipeline('depth-estimation')
+    control_net_depth = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=torch.float16)
+    CONTROL_NET_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
 
     if get_device() == 'cuda':
-        '''for base_model in BASE_MODELS:
+        for base_model in BASE_MODELS:
             PIPELINE_DICT['Text to Image'][base_model] = DiffusionPipeline.from_pretrained(base_model, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['Text to Image'][base_model].scheduler = DPMSolverMultistepScheduler.from_config(PIPELINE_DICT['Text to Image'][base_model].scheduler.config)
             PIPELINE_DICT['Text to Image'][base_model] = PIPELINE_DICT['Text to Image'][base_model].to('cuda')
@@ -93,7 +93,7 @@ def setup_pipelines():
         for instructable_model in INSTRUCTABLE_MODELS:
             PIPELINE_DICT['Pix to Pix'][instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['Pix to Pix'][instructable_model] = PIPELINE_DICT['Pix to Pix'][instructable_model].to('cuda')
-            PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler = EulerAncestralDiscreteScheduler.from_config(PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler.config)'''
+            PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler = EulerAncestralDiscreteScheduler.from_config(PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler.config)
 
         PIPELINE_DICT['Mask']['Inpainting'] = StableDiffusionControlNetInpaintPipeline.from_pretrained('runwayml/stable-diffusion-inpainting', controlnet=control_net_seg_inpaint, safety_checker=None, torch_dtype=torch.float16)
         PIPELINE_DICT['Mask']['Inpainting'].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['Mask']['Inpainting'].scheduler.config)
