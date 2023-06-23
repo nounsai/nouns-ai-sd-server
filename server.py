@@ -593,12 +593,27 @@ def api_delete_image(current_user_id, user_id, image_id):
 @auth_token_required
 @limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_create_audio(current_user_id):
+
     try:
         data = json.loads(request.data)
         prompt = data['text']
         audio_bytes = txt_to_audio(AUDIO_DICT, prompt)
+        id, cdn_id = create_audio(
+            user_id=current_user_id, 
+            audio_byte_data=audio_bytes, 
+            name='generated.mp3', 
+            size=0, 
+            metadata={
+                'prompt': prompt
+            },
+            use_thread=False
+        )
 
-        return "test"
+        return {
+            'id': id,
+            'cdn_id': cdn_id
+        }, 200
+
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
@@ -617,7 +632,7 @@ def api_create_audio_for_user(current_user_id, user_id):
         audio_data = audio_file.read()
         
         try:
-            id = create_audio(
+            id, _ = create_audio(
                 current_user_id,
                 audio_data,
                 audio_file.filename,

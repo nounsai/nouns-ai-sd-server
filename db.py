@@ -531,7 +531,7 @@ def delete_image_for_user(id, user_id):
 #######################################################
 
 
-def create_audio(user_id, audio_byte_data, name, size, metadata):
+def create_audio(user_id, audio_byte_data, name, size, metadata, use_thread=True):
     audio_cdn_uuid = str(uuid.uuid4())
 
     # save to database
@@ -547,11 +547,14 @@ def create_audio(user_id, audio_byte_data, name, size, metadata):
     conn.commit()
     close_connection(conn)
 
-    # Start a new thread for the slow save operation
-    save_thread = threading.Thread(target=upload_audio_to_cdn, args=(user_id, audio_cdn_uuid, audio_byte_data))
-    save_thread.start()
+    if use_thread:
+        # Start a new thread for the slow save operation
+        save_thread = threading.Thread(target=upload_audio_to_cdn, args=(user_id, audio_cdn_uuid, audio_byte_data))
+        save_thread.start()
+    else:
+        upload_audio_to_cdn(user_id=user_id, audio_id=audio_cdn_uuid, base_64=audio_byte_data)
 
-    return id
+    return id, audio_cdn_uuid
 
 
 def fetch_audios():
