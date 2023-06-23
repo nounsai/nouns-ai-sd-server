@@ -20,3 +20,4 @@ torch==2.0.0
 triton>=2.0.0.dev20221120
 transformers==4.26.1
 xformers==0.0.18
+audiocraft

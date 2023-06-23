@@ -36,8 +36,11 @@ from cdn import download_audio_from_cdn, delete_video_project_from_cdn
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
+AUDIO_DICT = {}
+
 if config['server_type'] == 'gpu':
-    from middleware import inference, setup_pipelines
+    from middleware import inference, setup_pipelines, txt_to_audio, setup_audio
+    AUDIO_DICT = setup_audio()
     PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
@@ -584,6 +587,21 @@ def api_delete_image(current_user_id, user_id, image_id):
 #############################
 ########## AUDIOS ###########
 #############################
+
+
+@app.route('/audios', methods=['POST'])
+@auth_token_required
+@limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_create_audio(current_user_id):
+    try:
+        data = json.loads(request.data)
+        prompt = data['text']
+        audio_bytes = txt_to_audio(AUDIO_DICT, prompt)
+
+        return "test"
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 
 @app.route('/users/<user_id>/audios', methods=['POST'])
