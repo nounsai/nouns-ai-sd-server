@@ -132,7 +132,7 @@ def txt_to_audio(audio_pipeline, text):
     buffer = io.BytesIO()
     model = audio_pipeline['Text to Audio']['musicgen']
     res = model.generate([text], progress=True)
-    tensor_to_audio_bytes(buffer, res, model.sample_rate, format='mp3')
+    tensor_to_audio_bytes(buffer, res[0], model.sample_rate, format='mp3')
     return buffer.read()
     
 

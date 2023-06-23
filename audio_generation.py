@@ -60,7 +60,6 @@ class CustomT5Conditioner(T5Conditioner):
         # incompatible code
         # mask[empty_idx, :] = 0  # zero-out index where the input is non-existant
 
-        print('new mask: ', mask)
         return inputs
     
 def get_conditioner_provider(output_dim: int, cfg: omegaconf.DictConfig) -> ConditioningProvider:
