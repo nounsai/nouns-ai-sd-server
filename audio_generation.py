@@ -207,5 +207,4 @@ def tensor_to_audio_bytes(
     else:
         raise RuntimeError(f"Invalid format {format}. Only wav or mp3 are supported.")
 
-    torchaudio.save('test_audio.mp3', wav, sample_rate, **kwargs)
     torchaudio.save(buffer, wav, sample_rate, **kwargs)

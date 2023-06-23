@@ -8,6 +8,7 @@ import datetime
 import secrets
 import requests
 import uuid
+import base64
 
 from PIL import Image
 from io import BytesIO 
@@ -598,6 +599,8 @@ def api_create_audio(current_user_id):
         data = json.loads(request.data)
         prompt = data['text']
         audio_bytes = txt_to_audio(AUDIO_DICT, prompt)
+        print(audio_bytes)
+        audio_bytes = base64.b64decode(audio_bytes)
         id, cdn_id = create_audio(
             user_id=current_user_id, 
             audio_byte_data=audio_bytes, 
