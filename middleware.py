@@ -129,7 +129,9 @@ def setup_audio():
 
 def txt_to_audio(audio_pipeline):
     print(audio_pipeline)
-    model = audio_pipeline['Text to Audio']['musicgen']
+    model = musicgen.MusicGen.get_pretrained('small', device='cuda')
+    model.set_generation_params(duration=3)
+    # model = audio_pipeline['Text to Audio']['musicgen']
     res = model.generate(['classical'], progress=True)
     print(res)
     
