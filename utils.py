@@ -14,6 +14,7 @@ import dropbox
 import pathlib
 import subprocess
 import numpy as np
+import requests
 
 from PIL import Image
 from io import BytesIO 
@@ -363,3 +364,41 @@ def bytes_from_image(image):
     buffer = io.BytesIO()
     image.save(buffer, format='JPEG')
     return buffer.getvalue()
+
+# https://github.com/10mohi6/discord-webhook-python/blob/master/discordwebhook/discordwebhook.py
+def send_discord_webhook(
+    *,
+    url=None,
+    content=None,
+    username=None,
+    avatar_url=None,
+    tts=False,
+    file=None,
+    embeds=None,
+    allowed_mentions=None
+):
+    
+    if content is None and file is None and embeds is None:
+        raise ValueError("required one of content, file, embeds")
+    if url is None:
+        raise ValueError("webhook url is required")
+    data = {}
+    if content is not None:
+        data["content"] = content
+    if username is not None:
+        data["username"] = username
+    if avatar_url is not None:
+        data["avatar_url"] = avatar_url
+    data["tts"] = tts
+    if embeds is not None:
+        data["embeds"] = embeds
+    if allowed_mentions is not None:
+        data["allowed_mentions"] = allowed_mentions
+    if file is not None:
+        return requests.post(
+            url, {"payload_json": json.dumps(data)}, files=file
+        )
+    else:
+        return requests.post(
+            url, json.dumps(data), headers={"Content-Type": "application/json"}
+        )

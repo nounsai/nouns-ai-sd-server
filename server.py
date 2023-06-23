@@ -7,6 +7,8 @@ import numpy
 import hashlib
 import datetime
 import secrets
+import requests
+import uuid
 
 from PIL import Image
 from io import BytesIO 
@@ -23,12 +25,15 @@ from sendgrid.helpers.mail import Mail, To
 from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
-        create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_for_user, \
+        create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_and_video_project_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
         fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
+        create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user, \
         update_user_referral_token, fetch_user_for_referral_token, create_referral, fetch_referral_for_referred, \
-        execute_reward, update_user_metadata, create_transaction, fetch_transactions_for_user
+        execute_reward, update_user_metadata, create_transaction, fetch_transactions_for_user, \
+        update_video_project_state, fetch_video_project_for_id, fetch_image, update_video_project_cdn_id
+from cdn import download_audio_from_cdn, delete_video_project_from_cdn
 
 
 config = fetch_env_config()
@@ -39,6 +44,7 @@ if config['server_type'] == 'gpu':
     PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1025 # 5 MB
 CORS(app, expose_headers=['X-Image-Id'])
 CORS(app)
 limiter = Limiter(
@@ -437,6 +443,7 @@ def api_create_image(current_user_id):
     # TODO: Make this return image metadata.
     response = make_response(serve_pil_image(images[0]))
     response.headers['X-Image-Id'] = id
+    response.headers['Access-Control-Expose-Headers'] = 'X-Image-Id'
     return response
 
 @app.route('/images', methods=['GET'])
@@ -458,6 +465,36 @@ def api_fetch_images():
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+
+@app.route('/user-images', methods=['POST'])
+@auth_token_required
+@limiter.limit('32 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_upload_user_image(current_user_id):
+
+    if request.files and request.files.get('image', None) is not None:
+        image_bytes = request.files['image'].read()
+        image = Image.open(BytesIO(image_bytes)).convert('RGB')
+        metadata = {
+            'base_64': None,
+            'user_uploaded': True
+        }
+        id = create_image(
+            current_user_id,
+            image_bytes,
+            thumbnail_bytes_for_image(image),
+            (hashlib.sha256(image_bytes)).hexdigest(),
+            metadata,
+            False,
+            True,
+            -1,
+            use_thread=False
+        )
+        db_image = fetch_image(id)
+        return db_image, 200
+    else:
+        return { 'error': 'No file detected' }, 400
+
 
 @app.route('/users/<user_id>/images', methods=['GET'])
 @auth_token_required
@@ -554,7 +591,7 @@ def api_delete_image(current_user_id, user_id, image_id):
 #############################
 
 
-@app.route('/users/<user_id>/audio', methods=['POST'])
+@app.route('/users/<user_id>/audios', methods=['POST'])
 @auth_token_required
 @limiter.limit('5 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
 def api_create_audio_for_user(current_user_id, user_id):
@@ -562,20 +599,25 @@ def api_create_audio_for_user(current_user_id, user_id):
     if user_id != current_user_id:
         return jsonify({'message': 'Wrong user!'}), 400
 
-    data = json.loads(request.data)
-    
-    try:
-        id = create_audio(
-            current_user_id,
-            data['name'],
-            data['url'],
-            data['size'],
-            data['metadata']
-        )
-        return { 'id': id }, 200
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+    if request.files:
+        audio_file = request.files["audio"]
+        audio_data = audio_file.read()
+        
+        try:
+            id = create_audio(
+                current_user_id,
+                audio_data,
+                audio_file.filename,
+                audio_file.content_length,
+                {}
+            )
+            return { 'id': id }, 200
+        except Exception as e:
+            print("Internal server error: {}".format(str(e)))
+            return { 'error': "Internal server error: {}".format(str(e)) }, 500
+    else:
+        return jsonify({"error": "No audio file detected"}), 400
+
 
 @app.route('/users/<user_id>/audios', methods=['GET'])
 @auth_token_required
@@ -601,23 +643,29 @@ def api_fetch_audios_for_user(current_user_id, user_id):
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
-@app.route('/users/<user_id>/audios/<audio_id>', methods=['GET'])
-@auth_token_required
-@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
-def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
+# @app.route('/users/<user_id>/audios/<audio_id>', methods=['GET'])
+# @auth_token_required
+# @limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+# def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
 
-    if user_id != current_user_id:
-        return jsonify({'message': 'Wrong user!'}), 400
+#     if user_id != current_user_id:
+#         return jsonify({'message': 'Wrong user!'}), 400
     
-    try:
-        audio = fetch_audio_for_user(current_user_id, audio_id)
-        if audio is not None:
-            return audio, 200
-        else:
-            return { 'error': "Audio not found" }, 404
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+#     try:
+#         audio = fetch_audio_for_user(current_user_id, audio_id)
+        
+#         if audio is not None:
+#             audioData = download_audio_from_cdn(user_id, audio['cdn_id'])
+#             if audioData == None:
+#                 raise Exception("Audio not found in CDN")    
+#             audio['data'] = audioData
+    
+#             return audio, 200
+#         else:
+#             return { 'error': "Audio not found" }, 404
+#     except Exception as e:
+#         print("Internal server error: {}".format(str(e)))
+#         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['PUT'])
 @auth_token_required
@@ -646,13 +694,13 @@ def api_update_audio(current_user_id, user_id, audio_id):
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['DELETE'])
 @auth_token_required
 @limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
-def api_delete_audio(current_user_id, user_id, audio_id):
+def api_delete_audio_and_video_project(current_user_id, user_id, audio_id):
 
     if user_id != current_user_id:
         return jsonify({'message': 'Wrong user!'}), 400
     
     try:
-        delete_audio_for_user(
+        delete_audio_and_video_project_for_user(
             current_user_id,
             audio_id
         )
@@ -902,6 +950,120 @@ def api_delete_video(current_user_id, user_id, video_id):
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
+    
+    
+################################
+######## VIDEO PROJECTS ########
+################################
+
+@app.route('/users/<user_id>/video-projects', methods=['POST'])
+@auth_token_required
+@limiter.limit('5 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_create_video_project_for_user(current_user_id, user_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+
+    data = json.loads(request.data)
+    
+    try:
+        id = create_video_project(
+            current_user_id,
+            data['audio_id'],
+            data['metadata'],
+        )
+        return { 'id': id }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+@app.route('/users/<user_id>/video-projects', methods=['GET'])
+@auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_fetch_video_projects_for_user(current_user_id, user_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+
+    # /video-projects?page=1&limit=20
+    page = request.args.get('page', default = 1, type = int)
+    limit = request.args.get('limit', default = 20, type = int)
+    offset = (page - 1) * limit
+
+    try:
+        video_projects = fetch_video_projects_for_user(
+            current_user_id,
+            limit,
+            offset
+        )
+        return video_projects, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+@app.route('/users/<user_id>/video-projects/<video_project_id>', methods=['GET'])
+@auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_fetch_video_project_for_user(current_user_id, user_id, video_project_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+    
+    try:
+        video_project = fetch_video_project_for_user(current_user_id, video_project_id)
+        if video_project is not None:
+            return video_project, 200
+        else:
+            return { 'error': "Video project not found" }, 404
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+@app.route('/users/<user_id>/video-projects/<video_project_id>', methods=['PUT'])
+@auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_update_video_project(current_user_id, user_id, video_project_id):
+
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+
+    data = json.loads(request.data)
+    try:
+        update_video_project_for_user(
+            current_user_id,
+            video_project_id,
+            data['metadata']
+        )
+        return { 'status': 'success' }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+
+@app.route('/video-projects/<video_project_id>/queue', methods=['POST'])
+@auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def queue_video_project_for_generation(current_user_id, video_project_id):
+    try:
+        project = fetch_video_project_for_id(video_project_id);
+        if project is None:
+            return { 'message': 'Video project does not exist!' }, 404
+        if project['user_id'] != int(current_user_id):
+            return { 'message': 'Wrong user!' }, 400
+
+        if project['state'] != 'PROCESSING' and project['state'] != 'QUEUED':
+            # delete previous project, if present
+            delete_video_project_from_cdn(project['user_id'], project['cdn_id'])
+            # update cdn id
+            update_video_project_cdn_id(project['id'], str(uuid.uuid4()))
+            # queue video
+            update_video_project_state(video_project_id, 'QUEUED')
+
+        return { 'status': 'success' }, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
 
 
 ############################
@@ -971,6 +1133,14 @@ def mask_from_points():
 
     return {'mask': base64_mask}
 
+
+############################
+########## ERRORs ##########
+############################
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({"error": "File size exceeds the allowed limit"}), 413
 
 #######################################################
 ######################## MAIN #########################
