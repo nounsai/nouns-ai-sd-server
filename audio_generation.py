@@ -7,7 +7,7 @@ import torchaudio
 
 from audiocraft.models.musicgen import MusicGen
 from audiocraft.utils.utils import dict_from_config
-from audiocraft.utils.audio_utils import normalize_audio, i16_pcm
+from audiocraft.data.audio_utils import normalize_audio, i16_pcm
 from audiocraft.models.loaders import _get_state_dict, load_compression_model, HF_MODEL_CHECKPOINTS_MAP
 from audiocraft.models.builders import (
     get_condition_fuser, 
