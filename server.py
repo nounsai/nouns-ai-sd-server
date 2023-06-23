@@ -32,10 +32,10 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
 config = fetch_env_config()
 PIPELINE_DICT = {}
 AUDIO_DICT = {}
-from middleware import txt_to_audio, setup_audio
-AUDIO_DICT = setup_audio()
+
 if config['server_type'] == 'gpu':
-    from middleware import inference, setup_pipelines
+    from middleware import inference, setup_pipelines, txt_to_audio, setup_audio
+    AUDIO_DICT = setup_audio()
     PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
@@ -388,15 +388,6 @@ def api_fetch_user_credits(current_user_id, user_id):
 ########## IMAGES ###########
 #############################
 
-@app.route('/audios', methods=['GET'])
-def api_create_audio():
-    try:
-        txt_to_audio(AUDIO_DICT)
-        return "test"
-    except Exception as e:
-        print("Internal server error: {}".format(str(e)))
-        return { 'error': "Internal server error: {}".format(str(e)) }, 500
-
 
 @app.route('/images', methods=['POST'])
 @challenge_token_required
@@ -559,6 +550,21 @@ def api_delete_image(current_user_id, user_id, image_id):
 #############################
 ########## AUDIOS ###########
 #############################
+
+
+@app.route('/audios', methods=['POST'])
+@auth_token_required
+@limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_create_audio(current_user_id):
+    try:
+        data = json.loads(request.data)
+        prompt = data['text']
+        audio_bytes = txt_to_audio(AUDIO_DICT, prompt)
+
+        return "test"
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 
 @app.route('/users/<user_id>/audio', methods=['POST'])
