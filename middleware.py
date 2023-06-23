@@ -115,7 +115,7 @@ def setup_pipelines():
     else:
         sys.exit('Need CUDA to run this server!')
     
-    '''for text_model in TEXT_MODELS:
+    for text_model in TEXT_MODELS:
         PIPELINE_DICT['Text'][text_model] = pipeline('text-generation', model=text_model, device=0)
 
     for interrogator_model in INTERROGATOR_MODELS:
@@ -127,7 +127,7 @@ def setup_pipelines():
 
     for upscale_model in UPSCALE_MODELS:
         PIPELINE_DICT['Upscale'][upscale_model] = StableDiffusionUpscalePipeline.from_pretrained(upscale_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-        PIPELINE_DICT['Upscale'][upscale_model] = PIPELINE_DICT['Upscale'][upscale_model].to('cuda')'''
+        PIPELINE_DICT['Upscale'][upscale_model] = PIPELINE_DICT['Upscale'][upscale_model].to('cuda')
 
     return PIPELINE_DICT
 
