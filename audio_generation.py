@@ -200,10 +200,10 @@ def tensor_to_audio_bytes(
                           sample_rate=sample_rate, stem_name=str(stem_name))
     kwargs: dict = {}
     if format == 'mp3':
-        kwargs.update({"compression": mp3_rate})
+        kwargs.update({"compression": mp3_rate, 'format': 'mp3'})
     elif format == 'wav':
         wav = i16_pcm(wav)
-        kwargs.update({"encoding": "PCM_S", "bits_per_sample": 16})
+        kwargs.update({"encoding": "PCM_S", "bits_per_sample": 16, 'format': 'wav'})
     else:
         raise RuntimeError(f"Invalid format {format}. Only wav or mp3 are supported.")
 
