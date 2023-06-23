@@ -76,7 +76,6 @@ def get_conditioner_provider(output_dim: int, cfg: omegaconf.DictConfig) -> Cond
         model_type = cond_cfg["model"]
         model_args = cond_cfg[model_type]
         if model_type == "t5":
-            print('used custom conditioner')
             conditioners[str(cond)] = CustomT5Conditioner(output_dim=output_dim, device=device, **model_args)
         elif model_type == "lut":
             conditioners[str(cond)] = LUTConditioner(output_dim=output_dim, **model_args)
