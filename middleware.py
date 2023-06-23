@@ -11,7 +11,6 @@ import numpy
 import torch
 from PIL import Image
 from googletrans import Translator
-import io
 
 from transformers import pipeline, AutoImageProcessor, UperNetForSemanticSegmentation
 from sendgrid import SendGridAPIClient
@@ -20,7 +19,6 @@ from clip_interrogator import Config, Interrogator
 from transformers.generation_utils import GenerationMixin
 from moviepy.editor import AudioFileClip, VideoFileClip, concatenate_videoclips
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline, StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
-from audio_generation import CustomMusicGen, tensor_to_audio_bytes
 
 from db import fetch_image, fetch_user, update_video_for_user
 from utils import convert_mp4_to_mov, dropbox_get_link, dropbox_upload_file, fetch_env_config, get_device, image_from_base_64, preprocess, adjust_thickness, refresh_dir, \
@@ -37,7 +35,6 @@ torch.use_deterministic_algorithms(True)
 PIPELINE_DICT = {
     'Text to Image': {},
     'Image to Image': {},
-    'Text to Audio': {},
     'Pix to Pix': {},
     'Text': {},
     'Interrogator': {},
@@ -111,30 +108,9 @@ def setup_pipelines():
 
     return PIPELINE_DICT
 
-AUDIO_DICT = {
-    'Text to Audio': {}
-}
-
-def setup_audio():
-    if torch.cuda.is_available():
-        model = CustomMusicGen.get_pretrained('small', device='cuda')
-        
-        model.set_generation_params(duration=3)
-        AUDIO_DICT['Text to Audio']['musicgen'] = model
-
-    return AUDIO_DICT
-
 #######################################################
 ##################### PIPELINING ######################
 #######################################################
-
-def txt_to_audio(audio_pipeline, text):
-    buffer = io.BytesIO()
-    model = audio_pipeline['Text to Audio']['musicgen']
-    res = model.generate([text], progress=True)
-    tensor_to_audio_bytes(buffer, res, model.sample_rate, format='mp3')
-    return buffer.read()
-    
 
 def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio):
 
