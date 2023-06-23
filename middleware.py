@@ -4,29 +4,33 @@
 import os
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
 
+import requests
+import traceback
 import sys
-import cv2
-import time
+import base64
 import numpy
 import torch
 from PIL import Image
 from googletrans import Translator
 
 from transformers import pipeline, AutoImageProcessor, UperNetForSemanticSegmentation
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, To
 from clip_interrogator import Config, Interrogator
 from transformers.generation_utils import GenerationMixin
-from moviepy.editor import AudioFileClip, VideoFileClip, concatenate_videoclips
-from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline, StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline,\
+    StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline,\
+    StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
 
-from db import fetch_image, fetch_user, update_video_for_user
-from utils import convert_mp4_to_mov, dropbox_get_link, dropbox_upload_file, fetch_env_config, get_device, image_from_base_64, preprocess, adjust_thickness, refresh_dir, \
+from inpainting import StableDiffusionControlNetInpaintPipeline, image_to_seg
+from segment_anything import sam_model_registry
+
+from utils import fetch_env_config, get_device, preprocess, adjust_thickness, \
                  BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UPSCALE_MODELS, PALETTE
 
 config = fetch_env_config()
 torch.backends.cudnn.benchmark = False
-torch.use_deterministic_algorithms(True)
+
+# warn_only needed for SAM which uses a function that doesn't have deterministic algorithms, but deterministic is not required
+torch.use_deterministic_algorithms(True, warn_only=True)
 
 #######################################################
 ######################## SETUP ########################
@@ -37,6 +41,7 @@ PIPELINE_DICT = {
     'Image to Image': {},
     'Pix to Pix': {},
     'Text': {},
+    'Mask': {},
     'Interrogator': {},
     'Upscale': {},
     'ControlNet': {
@@ -63,6 +68,7 @@ def setup_pipelines():
     PIPELINE_DICT['Image Processor'] = AutoImageProcessor.from_pretrained("openmmlab/upernet-convnext-small")
     PIPELINE_DICT['Image Segmentor'] = UperNetForSemanticSegmentation.from_pretrained("openmmlab/upernet-convnext-small")
     control_net_seg = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=torch.float16)
+    control_net_seg_inpaint = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-seg', torch_dtype=torch.float16)
     PIPELINE_DICT['Depth Estimator'] = pipeline('depth-estimation')
     control_net_depth = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=torch.float16)
     CONTROL_NET_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
@@ -88,6 +94,23 @@ def setup_pipelines():
             PIPELINE_DICT['Pix to Pix'][instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['Pix to Pix'][instructable_model] = PIPELINE_DICT['Pix to Pix'][instructable_model].to('cuda')
             PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler = EulerAncestralDiscreteScheduler.from_config(PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler.config)
+
+        PIPELINE_DICT['Mask']['Inpainting'] = StableDiffusionControlNetInpaintPipeline.from_pretrained('runwayml/stable-diffusion-inpainting', controlnet=control_net_seg_inpaint, safety_checker=None, torch_dtype=torch.float16)
+        PIPELINE_DICT['Mask']['Inpainting'].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['Mask']['Inpainting'].scheduler.config)
+        PIPELINE_DICT['Mask']['Inpainting'].enable_xformers_memory_efficient_attention()
+        PIPELINE_DICT['Mask']['Inpainting'].enable_model_cpu_offload()
+
+        if not os.path.exists('models/sam_vit_h_4b8939.pth'):
+            if not os.path.isdir('models'):
+                os.mkdir('models')
+
+            print('Downloading SAM model...')
+            res = requests.get('https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth')
+            with open('models/sam_vit_h_4b8939.pth', 'wb') as f:
+                f.write(res.content)
+
+        PIPELINE_DICT['Mask']['SAM'] = sam_model_registry["default"](checkpoint="models/sam_vit_h_4b8939.pth").to(device='cuda')
+
             
     else:
         sys.exit('Need CUDA to run this server!')
@@ -214,6 +237,33 @@ def control_net_segmentation(control_net_pipeline, prompt, generator, negative_p
     return images
 
 
+def control_net_mask(mask_pipeline, prompt, generator, negative_prompt, steps, img, base64_mask):
+    byte_mask = base64.b64decode(base64_mask)
+    binary_mask = numpy.frombuffer(byte_mask, dtype=numpy.uint8)
+    boolean_mask = numpy.unpackbits(binary_mask, axis=-1).astype(bool)
+
+    dimensions = (img.width, img.height)
+    mask_image = Image.new('RGB', dimensions, (0, 0, 0))
+
+    for y in range(dimensions[1]):
+        for x in range(dimensions[0]):
+            if boolean_mask[y * dimensions[0] + x]:
+                mask_image.putpixel((x, y), (255, 255, 255))
+
+    conditioning_image = image_to_seg(PIPELINE_DICT['Image Processor'], PIPELINE_DICT['Image Segmentor'], img)
+
+    generated_images = mask_pipeline(
+        prompt,
+        img,
+        mask_image,
+        conditioning_image,
+        negative_prompt=negative_prompt,
+        generator=generator,
+        num_inference_steps=steps
+    ).images
+
+    return generated_images
+
 
 # def unclip_images(video_id, user_id, unclip_pipeline, metadata):
 
@@ -315,7 +365,7 @@ def control_net_segmentation(control_net_pipeline, prompt, generator, negative_p
 #         return False
 
 
-def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=25, scale=7.5, seed=1437181781, aspect_ratio='768:768', img=None, strength=0.5):
+def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=25, scale=7.5, seed=1437181781, aspect_ratio='768:768', img=None, strength=0.5, mask=None):
 
     generator = torch.Generator('cuda').manual_seed(seed)
 
@@ -333,6 +383,9 @@ def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=
         
             elif inf_mode == 'Pix to Pix':
                 return pix_to_pix(pipeline, prompt, generator, n_images, steps, scale, img)
+
+            elif inf_mode == 'Mask':
+                return control_net_mask(pipeline, prompt, generator, negative_prompt, steps, img, mask)
         
             elif inf_mode.split(' ')[1] == 'Outlines':
                 return control_net_outlines(pipeline, prompt, generator, negative_prompt, steps, strength, img)
@@ -345,4 +398,5 @@ def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=
         
     except Exception as e:
         print('Internal server error with inferencing {}: {}'.format(inf_mode, str(e)))
+        traceback.print_exc()
         return None

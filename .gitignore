@@ -4,6 +4,7 @@ audio/
 dreams/
 flagged/
 images/
+models/*
 __pycache__
 .pytest_cache
 .DS_Store
