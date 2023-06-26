@@ -9,6 +9,7 @@ import secrets
 import requests
 import uuid
 import base64
+import traceback
 
 from PIL import Image
 from io import BytesIO 
@@ -637,6 +638,7 @@ def api_create_audio(current_user_id):
         }, 200
 
     except Exception as e:
+        print(traceback.format_exc())
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
