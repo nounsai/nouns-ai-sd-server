@@ -22,7 +22,7 @@ from flask_limiter.util import get_remote_address
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image
+from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image, _hide_seek
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_and_video_project_for_user, \
@@ -35,12 +35,14 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         update_video_project_state, fetch_video_project_for_id, fetch_image, update_video_project_cdn_id
 from cdn import download_audio_from_cdn, delete_video_project_from_cdn
 
+import torchaudio
+
 config = fetch_env_config()
 PIPELINE_DICT = {}
 AUDIO_DICT = {}
 
 if config['server_type'] == 'gpu':
-    from middleware import inference, setup_pipelines, txt_to_audio, setup_audio
+    from middleware import inference, setup_pipelines, txt_to_audio, txt_and_audio_to_audio, setup_audio
     AUDIO_DICT = setup_audio()
     PIPELINE_DICT = setup_pipelines()
 
@@ -598,16 +600,34 @@ def api_create_audio(current_user_id):
     try:
         data = json.loads(request.data)
         prompt = data['text']
-        audio_bytes = txt_to_audio(AUDIO_DICT, prompt)
+        melody_id = data.get('melody_id', None)
+
+        metadata = {
+            'prompt': prompt
+        }
+
+        if melody_id is None:
+            audio_bytes = txt_to_audio(AUDIO_DICT, prompt)
+        else:
+            db_melody = fetch_audio_for_user(current_user_id, melody_id)
+            if db_melody is None:
+                return { 'error': 'melody not found' }, 404
+            
+            metadata['parent_id'] = db_melody['id']
+
+            melody_url = f"https://nounsai-audio.b-cdn.net/{current_user_id}/{db_melody['cdn_id']}-full.mp3"
+            with requests.get(melody_url, stream=True) as response:
+                melody_wav, melody_sr = torchaudio.load(_hide_seek(response.raw))
+            
+            audio_bytes = txt_and_audio_to_audio(AUDIO_DICT, prompt, melody_wav, melody_sr)
+
 
         id, cdn_id = create_audio(
             user_id=current_user_id, 
             audio_byte_data=audio_bytes, 
             name='generated.mp3', 
             size=0, 
-            metadata={
-                'prompt': prompt
-            },
+            metadata=metadata,
             use_thread=False
         )
 
