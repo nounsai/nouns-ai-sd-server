@@ -42,7 +42,11 @@ PIPELINE_DICT = {}
 AUDIO_DICT = {}
 
 if config['server_type'] == 'gpu':
-    from middleware import inference, setup_pipelines, txt_to_audio, txt_and_audio_to_audio, setup_audio
+    from middleware import (
+        inference, setup_pipelines, txt_to_audio, 
+        txt_and_audio_to_audio, setup_audio, 
+        separate_audio_tracks
+    )
     AUDIO_DICT = setup_audio()
     PIPELINE_DICT = setup_pipelines()
 
@@ -603,7 +607,8 @@ def api_create_audio(current_user_id):
         melody_id = data.get('melody_id', None)
 
         metadata = {
-            'prompt': prompt
+            'prompt': prompt,
+            'mode': 'text to audio'
         }
 
         if melody_id is None:
@@ -614,6 +619,7 @@ def api_create_audio(current_user_id):
                 return { 'error': 'melody not found' }, 404
             
             metadata['parent_id'] = db_melody['id']
+            metadata['mode'] = 'melody to audio'
 
             melody_url = f"https://nounsai-audio.b-cdn.net/{current_user_id}/{db_melody['cdn_id']}-full.mp3"
             with requests.get(melody_url, stream=True) as response:
@@ -635,6 +641,46 @@ def api_create_audio(current_user_id):
             'id': id,
             'cdn_id': cdn_id
         }, 200
+
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+@app.route('/audio-split', methods=['POST'])
+@auth_token_required
+@limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_split_audio(current_user_id):
+
+    try:
+        data = json.loads(request.data)
+        audio_id = data['id']
+        db_audio = fetch_audio_for_user(current_user_id, audio_id)
+        if db_audio is None:
+            return { 'error': 'audio not found' }, 404
+        audio_url = f"https://nounsai-audio.b-cdn.net/{current_user_id}/{db_audio['cdn_id']}-full.mp3"
+        with requests.get(audio_url, stream=True) as response:
+            wav, sr = torchaudio.load(_hide_seek(response.raw))
+        
+        result = []
+        for audio_bytes, name in separate_audio_tracks(AUDIO_DICT, wav):
+            id, cdn_id = create_audio(
+                user_id=current_user_id, 
+                audio_byte_data=audio_bytes, 
+                name=f'{name}-' + db_audio['name'], 
+                size=0, 
+                metadata={
+                    'parent_id': db_audio,
+                    'mode': 'audio split'
+                },
+                use_thread=False
+            )
+            result.append({
+                'id': id,
+                'cdn_id': cdn_id,
+                'type': name
+            })
+        
+        return result, 200
 
     except Exception as e:
         print("Internal server error: {}".format(str(e)))

@@ -20,7 +20,7 @@ from clip_interrogator import Config, Interrogator
 from transformers.generation_utils import GenerationMixin
 from moviepy.editor import AudioFileClip, VideoFileClip, concatenate_videoclips
 from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler, StableDiffusionUpscalePipeline, StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
-from audio_generation import CustomMusicGen, tensor_to_audio_bytes
+from audio_generation import CustomMusicGen, tensor_to_audio_bytes, Demucs
 
 from db import fetch_image, fetch_user, update_video_for_user
 from utils import convert_mp4_to_mov, dropbox_get_link, dropbox_upload_file, fetch_env_config, get_device, image_from_base_64, preprocess, adjust_thickness, refresh_dir, \
@@ -112,7 +112,8 @@ def setup_pipelines():
     return PIPELINE_DICT
 
 AUDIO_DICT = {
-    'Text to Audio': {}
+    'Text to Audio': {},
+    'Audio to Audio': {}
 }
 
 def setup_audio():
@@ -121,6 +122,7 @@ def setup_audio():
         
         model.set_generation_params(duration=5)
         AUDIO_DICT['Text to Audio']['musicgen'] = model
+        AUDIO_DICT['Audio to Audio']['demucs'] = Demucs()
 
     return AUDIO_DICT
 
@@ -143,6 +145,16 @@ def txt_and_audio_to_audio(audio_pipeline, text, wav, sr):
     tensor_to_audio_bytes(buffer, res[0].cpu(), model.sample_rate, format='mp3')
     buffer.seek(0)
     return buffer.read()
+
+def separate_audio_tracks(audio_pipline, wav):
+    model = audio_pipline['Audio to Audio']['demucs']
+    sources = model.separate(wav)
+    for source, name in zip(sources, model.sources):
+        buffer = io.BytesIO()
+        tensor_to_audio_bytes(buffer, source.cpu(), model.samplerate, format='mp3')
+        buffer.seek(0)
+        yield buffer.read(), name
+
     
 
 def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio):

@@ -28,11 +28,44 @@ from omegaconf import OmegaConf
 import typing as tp
 import random
 from pathlib import Path
-from huggingface_hub import hf_hub_download
 
-import io
+from demucs.pretrained import get_model
+from demucs.apply import apply_model
 
 
+# ==============================
+# Demucs
+# ==============================
+
+class Demucs():
+    def __init__(self, name='htdemucs'):
+        self.model = get_model(name=name)
+        self.model.eval()
+    
+    def separate_audio(self, wav):
+        ref = wav.mean(0)
+        wav -= ref.mean()
+        wav /= ref.std()
+        sources = apply_model(
+            self.model,
+            wav[None],
+            device='cuda',
+            shifts=1,
+            split=True,
+            overlap=0.25,
+            progress=True,
+            num_workers=0,
+            segment=None
+        )[0]
+
+        sources *= ref.std()
+        sources += ref.mean()
+
+        return sources
+
+# ==============================
+# MusicGen
+# ==============================
 
 class CustomT5Conditioner(T5Conditioner):
     def tokenize(self, x: tp.List[tp.Optional[str]]) -> tp.Dict[str, torch.Tensor]:
@@ -179,6 +212,10 @@ class CustomMusicGen(MusicGen):
 
         return MusicGen(name, compression_model, lm)
 
+
+# ==============================
+# Helpers
+# ==============================
 
 def tensor_to_audio_bytes(
     buffer,
