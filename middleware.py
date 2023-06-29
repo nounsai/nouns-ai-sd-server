@@ -148,7 +148,7 @@ def txt_and_audio_to_audio(audio_pipeline, text, wav, sr):
 
 def separate_audio_tracks(audio_pipline, wav):
     model = audio_pipline['Audio to Audio']['demucs']
-    sources = model.separate(wav)
+    sources = model.separate_audio(wav)
     for source, name in zip(sources, model.sources):
         buffer = io.BytesIO()
         tensor_to_audio_bytes(buffer, source.cpu(), model.samplerate, format='mp3')
