@@ -666,10 +666,10 @@ def api_split_audio(current_user_id):
             id, cdn_id = create_audio(
                 user_id=current_user_id, 
                 audio_byte_data=audio_bytes, 
-                name=f'{name}-' + db_audio['name'], 
+                name=f'{name}:::' + db_audio['name'], 
                 size=0, 
                 metadata={
-                    'parent_id': db_audio,
+                    'parent_id': db_audio['id'],
                     'mode': 'audio split'
                 },
                 use_thread=False
