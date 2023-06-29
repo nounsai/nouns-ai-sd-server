@@ -41,6 +41,12 @@ class Demucs():
     def __init__(self, name='htdemucs'):
         self.model = get_model(name=name)
         self.model.eval()
+
+    def get_sources(self):
+        return self.model.sources
+    
+    def get_samplerate(self):
+        return self.model.samplerate
     
     def separate_audio(self, wav):
         ref = wav.mean(0)
