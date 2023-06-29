@@ -42,10 +42,11 @@ class Demucs():
         self.model = get_model(name=name)
         self.model.eval()
 
-    def get_sources(self):
+    @property
+    def sources(self):
         return self.model.sources
-    
-    def get_samplerate(self):
+    @property
+    def samplerate(self):
         return self.model.samplerate
     
     def separate_audio(self, wav):
