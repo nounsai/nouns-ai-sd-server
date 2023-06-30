@@ -70,8 +70,8 @@ def setup_pipelines():
     # control_net_seg = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=torch.float16)
     control_net_seg_inpaint = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-seg', torch_dtype=torch.float16)
     PIPELINE_DICT['Depth Estimator'] = pipeline('depth-estimation')
-    # control_net_depth = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=torch.float16)
-    # CONTROL_NET_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
+    control_net_depth = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=torch.float16)
+    CONTROL_NET_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
 
     if get_device() == 'cuda':
         for base_model in BASE_MODELS:
@@ -87,9 +87,9 @@ def setup_pipelines():
         #     PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL] = StableDiffusionControlNetPipeline.from_pretrained(CONTROL_NET_BASE_MODEL, controlnet=control_net_seg, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
         #     PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].scheduler.config)
         #     PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].enable_model_cpu_offload()
-        #     PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL] = StableDiffusionControlNetPipeline.from_pretrained(CONTROL_NET_BASE_MODEL, controlnet=control_net_depth, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-        #     PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].scheduler.config)
-        #     PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].enable_model_cpu_offload()
+            PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL] = StableDiffusionControlNetPipeline.from_pretrained(CONTROL_NET_BASE_MODEL, controlnet=control_net_depth, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+            PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].scheduler.config)
+            PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].enable_model_cpu_offload()
         # for instructable_model in INSTRUCTABLE_MODELS:
             # PIPELINE_DICT['Pix to Pix'][instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             # PIPELINE_DICT['Pix to Pix'][instructable_model] = PIPELINE_DICT['Pix to Pix'][instructable_model].to('cuda')
