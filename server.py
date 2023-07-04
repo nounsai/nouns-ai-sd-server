@@ -697,17 +697,28 @@ def api_create_audio_for_user(current_user_id, user_id):
 
     if request.files:
         audio_file = request.files["audio"]
+        use_thread = request.form.get("useThread", None)
         audio_data = audio_file.read()
         
         try:
-            id, _ = create_audio(
-                current_user_id,
-                audio_data,
-                audio_file.filename,
-                audio_file.content_length,
-                {}
-            )
-            return { 'id': id }, 200
+            if (use_thread is not None):
+                id, cdn_id = create_audio(
+                    current_user_id,
+                    audio_data,
+                    audio_file.filename,
+                    audio_file.content_length,
+                    {},
+                    use_thread=False
+                )
+            else:
+                id, cdn_id = create_audio(
+                    current_user_id,
+                    audio_data,
+                    audio_file.filename,
+                    audio_file.content_length,
+                    {}
+                )
+            return { 'id': id, 'cdn_id': cdn_id }, 200
         except Exception as e:
             print("Internal server error: {}".format(str(e)))
             return { 'error': "Internal server error: {}".format(str(e)) }, 500
