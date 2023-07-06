@@ -144,6 +144,7 @@ def setup_audio():
         model.set_generation_params(duration=config.get('audio_gen_duration', 15))
         model.to('cuda')
         AUDIO_DICT['Text to Audio']['musicgen'] = model
+        AUDIO_DICT['Audio to Audio']['demucs'] = Demucs()
 
     return AUDIO_DICT
 
@@ -157,6 +158,23 @@ def txt_to_audio(audio_pipeline, text):
     res = model.generate([text], progress=True)
     tensor_to_audio_bytes(buffer, res, model.sample_rate, format='mp3')
     return buffer.read()
+
+def txt_and_audio_to_audio(audio_pipeline, text, wav, sr):
+    buffer = io.BytesIO()
+    model = audio_pipeline['Text to Audio']['musicgen']
+    res = model.generate_with_chroma([text], wav[None].expand(1, -1, -1), sr)
+    tensor_to_audio_bytes(buffer, res[0].cpu(), model.sample_rate, format='mp3')
+    buffer.seek(0)
+    return buffer.read()
+
+def separate_audio_tracks(audio_pipline, wav):
+    model = audio_pipline['Audio to Audio']['demucs']
+    sources = model.separate_audio(wav)
+    for source, name in zip(sources, model.sources):
+        buffer = io.BytesIO()
+        tensor_to_audio_bytes(buffer, source.cpu(), model.samplerate, format='mp3')
+        buffer.seek(0)
+        yield buffer.read(), name
     
 
 def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio):
