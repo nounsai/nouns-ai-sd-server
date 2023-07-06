@@ -1,6 +1,6 @@
 accelerate==0.18.0
 clip-interrogator==0.3.5
-diffusers==0.14.0
+diffusers==0.17.1
 flask
 flask_cors
 ftfy
@@ -17,8 +17,11 @@ requests
 sendgrid==6.9.7
 sentencepiece==0.1.97
 torch==2.0.0
-triton>=2.0.0.dev20221120
-transformers==4.26.1
+triton==2.0.0.dev20221120
+transformers==4.30.1
 xformers==0.0.18
-audiocraft
+segment-anything @ git+https://github.com/facebookresearch/segment-anything.git@6fdee8f
+numpy
+pillow
+
 -e git+https://github.com/facebookresearch/demucs#egg=demucs

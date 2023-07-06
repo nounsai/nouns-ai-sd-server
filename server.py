@@ -1,4 +1,5 @@
 import os
+import base64
 import jwt
 import sys
 import json
@@ -39,9 +40,9 @@ import torchaudio
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
-AUDIO_DICT = {}
-
 if config['server_type'] == 'gpu':
+    from segment_anything import SamPredictor
+    from middleware import inference, setup_pipelines
     from middleware import (
         inference, setup_pipelines, txt_to_audio, 
         txt_and_audio_to_audio, setup_audio, 
@@ -423,7 +424,9 @@ def api_create_image(current_user_id):
             images = inference(PIPELINE_DICT['Pix to Pix'][data['model_id']], 'Pix to Pix', data['prompt'], n_images=int(data['samples']), steps=int(data['steps']), seed=int(data['seed']), img=image)
         elif data['inference_mode'].split(' ')[0] == 'ControlNet':
             images = inference(PIPELINE_DICT['ControlNet'][data['inference_mode'].split(' ')[1]][data['model_id']], data['inference_mode'], data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), img=image, strength=int(data['strength']))
-        
+        elif data['inference_mode'] == 'Mask':
+            images = inference(PIPELINE_DICT['Mask']['Inpainting'], data['inference_mode'], data['prompt'], n_images=1, negative_prompt=data['negative_prompt'], seed=int(data['seed']), img=image, mask=data['mask'])
+
         if parent_id == -1:
             images_with_hash = fetch_images_with_hash(hashlib.sha256(data['base_64'].encode('utf-8')).hexdigest())
             images_for_user_with_hash = [i for i in images_with_hash if i.user_id == current_user_id]
@@ -1215,6 +1218,30 @@ def upscale(current_user_id):
         image=image
     ).images
     return serve_pil_image(images[0])
+
+@app.route('/mask', methods=['POST'])
+@challenge_token_required
+@limiter.limit(limit_value=lambda: '12 per minute' if g.get('current_user_id', None) else '6 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def mask_from_points():
+    content = json.loads(request.data)
+    image = image_from_base_64(content['base64']).convert('RGB')
+    coordinates = content['coordinates']
+
+    predictor = SamPredictor(PIPELINE_DICT['Mask']['SAM'])
+    predictor.set_image(numpy.asarray(image))
+
+    masks, _, _ = predictor.predict(
+        point_coords=numpy.array(coordinates), point_labels=numpy.array([1] * len(coordinates)))
+    merged_mask = numpy.any(masks, axis=0)
+
+    # convert to base 64
+    flattened_mask = merged_mask.flatten()  # flatten mask
+    binary_mask = numpy.packbits(flattened_mask,
+                                 axis=-1)  # get a binary representation (int, 1 or 0) of the boolean array
+    byte_mask = binary_mask.tobytes()  # convert int array to binary
+    base64_mask = base64.b64encode(byte_mask).decode()  # convert binary to base 64
+
+    return {'mask': base64_mask}
 
 
 ############################

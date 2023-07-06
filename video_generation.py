@@ -6,13 +6,43 @@ import inspect
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 import numpy as np
 from random import randint
-from stable_diffusion_videos import get_timesteps_arr, make_video_pyav
+from stable_diffusion_videos import make_video_pyav
 import PIL
 from transformers import pipeline
 import json 
 import time
+import librosa
 
 from pathlib import Path
+
+def get_timesteps_arr(audio_filepath, offset, duration, fps=30, margin=1.0, smooth=0.0, sr=None):
+    y, sr = librosa.load(audio_filepath, offset=offset, duration=duration, sr=sr)
+
+    # librosa.stft hardcoded defaults...
+    # n_fft defaults to 2048
+    # hop length is win_length // 4
+    # win_length defaults to n_fft
+    D = librosa.stft(y, n_fft=2048, hop_length=2048 // 4, win_length=2048)
+
+    # Extract percussive elements
+    D_harmonic, D_percussive = librosa.decompose.hpss(D, margin=margin)
+    y_percussive = librosa.istft(D_percussive, length=len(y))
+
+    # Get normalized melspectrogram
+    spec_raw = librosa.feature.melspectrogram(y=y_percussive, sr=sr)
+    spec_max = np.amax(spec_raw, axis=0)
+    spec_norm = (spec_max - np.min(spec_max)) / np.ptp(spec_max)
+
+    # Resize cumsum of spec norm to our desired number of interpolation frames
+    x_norm = np.linspace(0, spec_norm.shape[-1], spec_norm.shape[-1])
+    y_norm = np.cumsum(spec_norm)
+    y_norm /= y_norm[-1]
+    x_resize = np.linspace(0, y_norm.shape[-1], int(duration * fps))
+
+    T = np.interp(x_resize, x_norm, y_norm)
+
+    # Apply smoothing
+    return T * (1 - smooth) + np.linspace(0.0, 1.0, T.shape[0]) * smooth
 
 class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
 
