@@ -134,7 +134,8 @@ def setup_pipelines():
     return PIPELINE_DICT
 
 AUDIO_DICT = {
-    'Text to Audio': {}
+    'Text to Audio': {},
+    'Audio to Audio': {},
 }
 
 def setup_audio():
