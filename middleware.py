@@ -12,6 +12,7 @@ import numpy
 import torch
 from PIL import Image
 from googletrans import Translator
+import io
 
 from transformers import pipeline, AutoImageProcessor, UperNetForSemanticSegmentation
 from clip_interrogator import Config, Interrogator
