@@ -140,7 +140,8 @@ def setup_audio():
     if torch.cuda.is_available():
         model = CustomMusicGen.get_pretrained('small', device='cuda')
         
-        model.set_generation_params(duration=3)
+        model.set_generation_params(duration=config.get('audio_gen_duration', 15))
+        model.to('cuda')
         AUDIO_DICT['Text to Audio']['musicgen'] = model
 
     return AUDIO_DICT
