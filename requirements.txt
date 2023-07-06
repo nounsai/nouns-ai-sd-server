@@ -23,3 +23,5 @@ xformers==0.0.18
 segment-anything @ git+https://github.com/facebookresearch/segment-anything.git@6fdee8f
 numpy
 pillow
+
+-e git+https://github.com/facebookresearch/demucs#egg=demucs

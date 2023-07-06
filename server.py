@@ -9,6 +9,7 @@ import datetime
 import secrets
 import requests
 import uuid
+import base64
 
 from PIL import Image
 from io import BytesIO 
@@ -22,7 +23,7 @@ from flask_limiter.util import get_remote_address
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image
+from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image, _hide_seek
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_and_video_project_for_user, \
@@ -35,12 +36,19 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         update_video_project_state, fetch_video_project_for_id, fetch_image, update_video_project_cdn_id
 from cdn import download_audio_from_cdn, delete_video_project_from_cdn
 
+import torchaudio
 
 config = fetch_env_config()
 PIPELINE_DICT = {}
 if config['server_type'] == 'gpu':
     from segment_anything import SamPredictor
     from middleware import inference, setup_pipelines
+    from middleware import (
+        inference, setup_pipelines, txt_to_audio, 
+        txt_and_audio_to_audio, setup_audio, 
+        separate_audio_tracks
+    )
+    AUDIO_DICT = setup_audio()
     PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
@@ -591,6 +599,97 @@ def api_delete_image(current_user_id, user_id, image_id):
 #############################
 
 
+@app.route('/audios', methods=['POST'])
+@auth_token_required
+@limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_create_audio(current_user_id):
+
+    try:
+        data = json.loads(request.data)
+        prompt = data['text']
+        melody_id = data.get('melody_id', None)
+
+        metadata = {
+            'prompt': prompt,
+            'mode': 'text to audio'
+        }
+
+        if melody_id is None:
+            audio_bytes = txt_to_audio(AUDIO_DICT, prompt)
+        else:
+            db_melody = fetch_audio_for_user(current_user_id, melody_id)
+            if db_melody is None:
+                return { 'error': 'melody not found' }, 404
+            
+            metadata['parent_id'] = db_melody['id']
+            metadata['mode'] = 'melody to audio'
+
+            melody_url = f"https://nounsai-audio.b-cdn.net/{current_user_id}/{db_melody['cdn_id']}-full.mp3"
+            with requests.get(melody_url, stream=True) as response:
+                melody_wav, melody_sr = torchaudio.load(_hide_seek(response.raw))
+            
+            audio_bytes = txt_and_audio_to_audio(AUDIO_DICT, prompt, melody_wav, melody_sr)
+
+
+        id, cdn_id = create_audio(
+            user_id=current_user_id, 
+            audio_byte_data=audio_bytes, 
+            name='generated.mp3', 
+            size=0, 
+            metadata=metadata,
+            use_thread=False
+        )
+
+        return {
+            'id': id,
+            'cdn_id': cdn_id
+        }, 200
+
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+@app.route('/audio-split', methods=['POST'])
+@auth_token_required
+@limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_split_audio(current_user_id):
+
+    try:
+        data = json.loads(request.data)
+        audio_id = data['id']
+        db_audio = fetch_audio_for_user(current_user_id, audio_id)
+        if db_audio is None:
+            return { 'error': 'audio not found' }, 404
+        audio_url = f"https://nounsai-audio.b-cdn.net/{current_user_id}/{db_audio['cdn_id']}-full.mp3"
+        with requests.get(audio_url, stream=True) as response:
+            wav, sr = torchaudio.load(_hide_seek(response.raw))
+        
+        result = []
+        for audio_bytes, name in separate_audio_tracks(AUDIO_DICT, wav):
+            id, cdn_id = create_audio(
+                user_id=current_user_id, 
+                audio_byte_data=audio_bytes, 
+                name=f'{name}:::' + db_audio['name'], 
+                size=0, 
+                metadata={
+                    'parent_id': db_audio['id'],
+                    'mode': 'audio split'
+                },
+                use_thread=False
+            )
+            result.append({
+                'id': id,
+                'cdn_id': cdn_id,
+                'type': name
+            })
+        
+        return result, 200
+
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+
 @app.route('/users/<user_id>/audios', methods=['POST'])
 @auth_token_required
 @limiter.limit('5 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
@@ -601,17 +700,28 @@ def api_create_audio_for_user(current_user_id, user_id):
 
     if request.files:
         audio_file = request.files["audio"]
+        use_thread = request.form.get("useThread", None)
         audio_data = audio_file.read()
         
         try:
-            id = create_audio(
-                current_user_id,
-                audio_data,
-                audio_file.filename,
-                audio_file.content_length,
-                {}
-            )
-            return { 'id': id }, 200
+            if (use_thread is not None):
+                id, cdn_id = create_audio(
+                    current_user_id,
+                    audio_data,
+                    audio_file.filename,
+                    audio_file.content_length,
+                    {},
+                    use_thread=False
+                )
+            else:
+                id, cdn_id = create_audio(
+                    current_user_id,
+                    audio_data,
+                    audio_file.filename,
+                    audio_file.content_length,
+                    {}
+                )
+            return { 'id': id, 'cdn_id': cdn_id }, 200
         except Exception as e:
             print("Internal server error: {}".format(str(e)))
             return { 'error': "Internal server error: {}".format(str(e)) }, 500
