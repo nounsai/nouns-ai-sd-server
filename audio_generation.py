@@ -4,6 +4,7 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":16:8"
 import torch
 torch.use_deterministic_algorithms(True)
 import torchaudio
+import julius
 
 from audiocraft.models.musicgen import MusicGen
 from audiocraft.utils.utils import dict_from_config
@@ -69,6 +70,35 @@ class Demucs():
         sources += ref.mean()
 
         return sources
+
+def convert_audio_channels(wav, channels=2):
+    """Convert audio to the given number of channels."""
+    *shape, src_channels, length = wav.shape
+    if src_channels == channels:
+        pass
+    elif channels == 1:
+        # Case 1:
+        # The caller asked 1-channel audio, but the stream have multiple
+        # channels, downmix all channels.
+        wav = wav.mean(dim=-2, keepdim=True)
+    elif src_channels == 1:
+        # Case 2:
+        # The caller asked for multiple channels, but the input file have
+        # one single channel, replicate the audio over all channels.
+        wav = wav.expand(*shape, channels, length)
+    elif src_channels >= channels:
+        # Case 3:
+        # The caller asked for multiple channels, and the input file have
+        # more channels than requested. In that case return the first channels.
+        wav = wav[..., :channels, :]
+    else:
+        # Case 4: What is a reasonable choice here?
+        raise ValueError('The audio file has less channels than requested but is not mono.')
+    return wav
+
+def preprocess_audio(wav, sr, new_sr, channels):
+    wav = convert_audio_channels(wav, channels)
+    return julius.resample_frac(wav, sr, new_sr)
 
 # ==============================
 # MusicGen

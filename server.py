@@ -665,7 +665,7 @@ def api_split_audio(current_user_id):
             wav, sr = torchaudio.load(_hide_seek(response.raw))
         
         result = []
-        for audio_bytes, name in separate_audio_tracks(AUDIO_DICT, wav):
+        for audio_bytes, name in separate_audio_tracks(AUDIO_DICT, wav, sr):
             id, cdn_id = create_audio(
                 user_id=current_user_id, 
                 audio_byte_data=audio_bytes, 
