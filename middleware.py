@@ -23,7 +23,7 @@ from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiff
 
 from inpainting import StableDiffusionControlNetInpaintPipeline, image_to_seg
 from segment_anything import sam_model_registry
-from audio_generation import CustomMusicGen, tensor_to_audio_bytes, Demucs
+from audio_generation import CustomMusicGen, tensor_to_audio_bytes, Demucs, preprocess_audio
 
 from utils import fetch_env_config, get_device, preprocess, adjust_thickness, \
                  BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UPSCALE_MODELS, PALETTE
@@ -168,8 +168,9 @@ def txt_and_audio_to_audio(audio_pipeline, text, wav, sr):
     buffer.seek(0)
     return buffer.read()
 
-def separate_audio_tracks(audio_pipline, wav):
+def separate_audio_tracks(audio_pipline, wav, sr):
     model = audio_pipline['Audio to Audio']['demucs']
+    wav = preprocess_audio(wav, sr, model.samplrate, model.audio_channels)
     sources = model.separate_audio(wav)
     for source, name in zip(sources, model.sources):
         buffer = io.BytesIO()
