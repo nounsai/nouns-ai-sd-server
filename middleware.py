@@ -170,7 +170,7 @@ def txt_and_audio_to_audio(audio_pipeline, text, wav, sr):
 
 def separate_audio_tracks(audio_pipline, wav, sr):
     model = audio_pipline['Audio to Audio']['demucs']
-    wav = preprocess_audio(wav, sr, model.samplrate, model.audio_channels)
+    wav = preprocess_audio(wav, sr, model.samplerate, model.audio_channels)
     sources = model.separate_audio(wav)
     for source, name in zip(sources, model.sources):
         buffer = io.BytesIO()
