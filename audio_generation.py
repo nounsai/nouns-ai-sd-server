@@ -44,6 +44,9 @@ class Demucs():
         self.model.eval()
 
     @property
+    def audio_channels(self):
+        return self.model.audio_channels
+    @property
     def sources(self):
         return self.model.sources
     @property
