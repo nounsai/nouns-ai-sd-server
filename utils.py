@@ -15,6 +15,7 @@ import pathlib
 import subprocess
 import numpy as np
 import requests
+import tempfile
 
 from PIL import Image
 from io import BytesIO 
@@ -413,3 +414,39 @@ def _hide_seek(obj):
             return self.obj.read(n)
 
     return _wrapper(obj)
+
+
+def cv2_to_pil(img):
+    converted = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    pil = Image.fromarray(converted).convert('RGB')
+    return pil
+
+def pil_to_bytes(img):
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='PNG')
+    return img_byte_arr.getvalue()
+
+def extract_start_and_end_frames(video_bytes):
+    with tempfile.NamedTemporaryFile() as temp:
+        temp.write(video_bytes)
+        cap = cv2.VideoCapture(temp.name)
+
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+
+        duration = round(total_frames / fps)
+
+        # Get the first frame
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        _, first_frame = cap.read()
+
+        first_frame = cv2_to_pil(first_frame)
+
+        # Get the last frame
+        cap.set(cv2.CAP_PROP_POS_FRAMES, total_frames - 1)
+        _, last_frame = cap.read()
+
+        last_frame = cv2_to_pil(last_frame)
+
+        cap.release()
+        return first_frame, last_frame, duration

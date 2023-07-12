@@ -82,5 +82,14 @@ if __name__ == '__main__':
     )
     conn.commit()
 
+    print('TABLE videos: adding cdn_id field')
+
+    cur.execute(
+        """
+        ALTER TABLE videos ADD COLUMN IF NOT EXISTS cdn_id VARCHAR(36);
+        """
+    )
+    conn.commit()
+
 
     print('finished')

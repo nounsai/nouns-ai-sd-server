@@ -12,7 +12,7 @@ import psycopg2.extras
 import uuid
 import datetime
 
-from cdn import upload_image_to_cdn, delete_image_from_cdn, upload_audio_to_cdn, delete_audio_from_cdn
+from cdn import upload_image_to_cdn, delete_image_from_cdn, upload_audio_to_cdn, delete_audio_from_cdn, upload_video_project_to_cdn
 
 from configparser import ConfigParser
 
@@ -422,7 +422,7 @@ def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, 
             thumbnail_byte_data
         )
 
-    return id
+    return id, image_cdn_uuid
 
 
 def fetch_images(limit, offset):
@@ -684,15 +684,29 @@ def delete_link_for_user(id, user_id):
 ########################################################
 
 
-def create_video(user_id, metadata):
-    
+def create_video(user_id, metadata, duration, start_frame_id, start_frame_cdn_id, end_frame_id, end_frame_cdn_id, cdn_uuid, video_bytes):
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO videos (user_id, metadata) VALUES (%s, %s) RETURNING id;", (user_id, json.dumps(metadata)))
+    cur.execute(
+        "INSERT INTO videos (user_id, metadata, duration, start_frame_id, start_frame_cdn_id, end_frame_id, end_frame_cdn_id, cdn_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;", 
+        (
+            user_id, 
+            json.dumps(metadata), 
+            duration, 
+            start_frame_id, 
+            start_frame_cdn_id, 
+            end_frame_id, 
+            end_frame_cdn_id,
+            cdn_uuid
+        )
+    )
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+
+    upload_video_project_to_cdn(user_id, cdn_uuid, video_bytes)
+
     return id
 
 

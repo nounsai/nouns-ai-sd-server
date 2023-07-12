@@ -23,7 +23,7 @@ from flask_limiter.util import get_remote_address
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image, _hide_seek
+from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image, _hide_seek, extract_start_and_end_frames, pil_to_bytes
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_and_video_project_for_user, \
@@ -437,7 +437,7 @@ def api_create_image(current_user_id):
     
     image_byte_data = bytes_from_image(images[0])
     thumbnail_byte_data = thumbnail_bytes_for_image(images[0])
-    id = create_image(
+    id, _ = create_image(
         current_user_id,
         image_byte_data,
         thumbnail_byte_data,
@@ -487,7 +487,7 @@ def api_upload_user_image(current_user_id):
             'base_64': None,
             'user_uploaded': True
         }
-        id = create_image(
+        id, _ = create_image(
             current_user_id,
             image_bytes,
             thumbnail_bytes_for_image(image),
@@ -931,22 +931,63 @@ def api_delete_link(current_user_id, user_id, link_id):
 ################################
 
 
-@app.route('/users/<user_id>/videos', methods=['POST'])
+@app.route('/users/videos', methods=['POST'])
 @auth_token_required
-@limiter.limit('2 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
-def api_create_video_for_user(current_user_id, user_id):
+@limiter.limit('5 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_create_video_for_user(current_user_id):
 
-    if user_id != current_user_id:
-        return jsonify({'message': 'Wrong user!'}), 400
-
-    data = json.loads(request.data)
+    if not request.files:
+        return { 'error': 'file not found' }, 404
     
     try:
+        video_bytes = request.files['video'].read()
+
+        cdn_uuid = str(uuid.uuid4())
+
+        first_frame, last_frame, duration = extract_start_and_end_frames(video_bytes) 
+
+        first_frame_bytes = pil_to_bytes(first_frame)
+        last_frame_bytes = pil_to_bytes(last_frame)
+
+        # save first frame
+        first_id, first_cdn_id = create_image(
+            current_user_id,
+            first_frame_bytes,
+            thumbnail_bytes_for_image(first_frame),
+            (hashlib.sha256(first_frame_bytes)).hexdigest(),
+            { 'user_uploaded': True, 'video_cdn_id': cdn_uuid, 'video_duration': duration },
+            False,
+            True,
+            -1,
+            use_thread=False
+        )
+        # save last frame
+        last_id, last_cdn_id = create_image(
+            current_user_id,
+            last_frame_bytes,
+            thumbnail_bytes_for_image(last_frame),
+            (hashlib.sha256(last_frame_bytes)).hexdigest(),
+            { 'user_uploaded': True, 'video_cdn_id': cdn_uuid, 'video_duration': duration },
+            False,
+            True,
+            -1,
+            use_thread=False
+        )
+        # save video
         id = create_video(
             current_user_id,
-            data['metadata']
+            {},
+            duration,
+            first_id,
+            first_cdn_id,
+            last_id,
+            last_cdn_id,
+            cdn_uuid,
+            video_bytes
         )
-        return { 'id': id }, 200
+
+        return { 'id': id, 'cdn_id': cdn_uuid }, 200
+
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
