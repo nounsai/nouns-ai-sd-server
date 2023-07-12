@@ -57,7 +57,7 @@ PIPELINE_DICT = {
 }
 
 IMAGE_PROCESSOR = None
-IMAGE_SEGMENTOR= None
+IMAGE_SEGMENTOR = None
 DEPTH_ESTIMATOR = None
 
 def _no_validate_model_kwargs(self, model_kwargs):
@@ -70,7 +70,7 @@ def setup_pipelines():
     PIPELINE_DICT['Image Processor'] = AutoImageProcessor.from_pretrained("openmmlab/upernet-convnext-small")
     PIPELINE_DICT['Image Segmentor'] = UperNetForSemanticSegmentation.from_pretrained("openmmlab/upernet-convnext-small")
     # control_net_seg = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=torch.float16)
-    control_net_seg_inpaint = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-seg', torch_dtype=torch.float16)
+    # control_net_seg_inpaint = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-seg', torch_dtype=torch.float16)
     PIPELINE_DICT['Depth Estimator'] = pipeline('depth-estimation')
     control_net_depth = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=torch.float16)
     CONTROL_NET_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
@@ -80,9 +80,9 @@ def setup_pipelines():
             PIPELINE_DICT['Text to Image'][base_model] = DiffusionPipeline.from_pretrained(base_model, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['Text to Image'][base_model].scheduler = DPMSolverMultistepScheduler.from_config(PIPELINE_DICT['Text to Image'][base_model].scheduler.config)
             PIPELINE_DICT['Text to Image'][base_model] = PIPELINE_DICT['Text to Image'][base_model].to('cuda')
-            # PIPELINE_DICT['Image to Image'][base_model] = StableDiffusionImg2ImgPipeline.from_pretrained(base_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-            # PIPELINE_DICT['Image to Image'][base_model].scheduler = DPMSolverMultistepScheduler.from_config(PIPELINE_DICT['Image to Image'][base_model].scheduler.config)
-            # PIPELINE_DICT['Image to Image'][base_model] = PIPELINE_DICT['Image to Image'][base_model].to('cuda')
+            PIPELINE_DICT['Image to Image'][base_model] = StableDiffusionImg2ImgPipeline.from_pretrained(base_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+            PIPELINE_DICT['Image to Image'][base_model].scheduler = DPMSolverMultistepScheduler.from_config(PIPELINE_DICT['Image to Image'][base_model].scheduler.config)
+            PIPELINE_DICT['Image to Image'][base_model] = PIPELINE_DICT['Image to Image'][base_model].to('cuda')
             PIPELINE_DICT['ControlNet']['Outlines'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net_canny, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['ControlNet']['Outlines'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Outlines'][base_model].scheduler.config)
             PIPELINE_DICT['ControlNet']['Outlines'][base_model].enable_model_cpu_offload()
@@ -97,6 +97,7 @@ def setup_pipelines():
             # PIPELINE_DICT['Pix to Pix'][instructable_model] = PIPELINE_DICT['Pix to Pix'][instructable_model].to('cuda')
             # PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler = EulerAncestralDiscreteScheduler.from_config(PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler.config)
 
+        '''
         PIPELINE_DICT['Mask']['Inpainting'] = StableDiffusionControlNetInpaintPipeline.from_pretrained('runwayml/stable-diffusion-inpainting', controlnet=control_net_seg_inpaint, safety_checker=None, torch_dtype=torch.float16)
         PIPELINE_DICT['Mask']['Inpainting'].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['Mask']['Inpainting'].scheduler.config)
         PIPELINE_DICT['Mask']['Inpainting'].enable_xformers_memory_efficient_attention()
@@ -112,6 +113,7 @@ def setup_pipelines():
                 f.write(res.content)
 
         PIPELINE_DICT['Mask']['SAM'] = sam_model_registry["default"](checkpoint="models/sam_vit_h_4b8939.pth").to(device='cuda')
+        '''
 
             
     else:
