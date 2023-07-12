@@ -1001,15 +1001,13 @@ def api_fetch_videos_for_user(current_user_id, user_id):
         return jsonify({'message': 'Wrong user!'}), 400
 
     # /videos?page=1&limit=20
-    page = request.args.get('page', default = 1, type = int)
-    limit = request.args.get('limit', default = 20, type = int)
-    offset = (page - 1) * limit
+    # page = request.args.get('page', default = 1, type = int)
+    # limit = request.args.get('limit', default = 20, type = int)
+    # offset = (page - 1) * limit
 
     try:
         videos = fetch_videos_for_user(
-            current_user_id,
-            limit,
-            offset
+            current_user_id
         )
         return videos, 200
     except Exception as e:

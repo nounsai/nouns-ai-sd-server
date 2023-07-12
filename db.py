@@ -731,11 +731,11 @@ def fetch_video(id):
         return None
 
 
-def fetch_videos_for_user(user_id, limit, offset):
+def fetch_videos_for_user(user_id):
 
     conn = open_connection()
-    sql = "SELECT * FROM videos where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
-    videos_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
+    sql = "SELECT * FROM videos where user_id=%s;"
+    videos_df = pd.read_sql_query(sql, conn, params=[user_id])
     close_connection(conn)
     return json.loads(videos_df.to_json(orient="records"))
 
