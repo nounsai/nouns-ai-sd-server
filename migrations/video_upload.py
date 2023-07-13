@@ -91,5 +91,14 @@ if __name__ == '__main__':
     )
     conn.commit()
 
+    print('TABLE videos: adding name field')
+
+    cur.execute(
+        """
+        ALTER TABLE videos ADD COLUMN IF NOT EXISTS name VARCHAR(256);
+        """
+    )
+    conn.commit()
+
 
     print('finished')

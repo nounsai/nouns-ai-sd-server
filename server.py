@@ -10,6 +10,7 @@ import secrets
 import requests
 import uuid
 import base64
+import traceback
 
 from PIL import Image
 from io import BytesIO 
@@ -940,7 +941,9 @@ def api_create_video_for_user(current_user_id):
         return { 'error': 'file not found' }, 404
     
     try:
-        video_bytes = request.files['video'].read()
+        video_file = request.files['video']
+        video_name = video_file.filename
+        video_bytes = video_file.read()
 
         cdn_uuid = str(uuid.uuid4())
 
@@ -983,12 +986,24 @@ def api_create_video_for_user(current_user_id):
             last_id,
             last_cdn_id,
             cdn_uuid,
-            video_bytes
+            video_bytes,
+            video_name
         )
 
-        return { 'id': id, 'cdn_id': cdn_uuid }, 200
+        return { 
+            'id': id, 
+            'cdn_id': cdn_uuid, 
+            'start_frame_id': first_id, 
+            'start_frame_cdn_id': first_cdn_id,
+            'end_frame_id': last_id,
+            'end_frame_cdn_id': last_cdn_id,
+            'duration': duration,
+            'user_id': current_user_id,
+            'name': video_name
+        }, 200
 
     except Exception as e:
+        print(traceback.format_exc())
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 

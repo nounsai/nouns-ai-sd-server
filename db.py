@@ -399,7 +399,7 @@ def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, 
     
     user_images_with_hash = fetch_images_for_user_with_hash(user_id, hash)
     if len(user_images_with_hash) > 0:
-        return user_images_with_hash[0]['id']
+        return user_images_with_hash[0]['id'], user_images_with_hash[0]['cdn_id']
     
     sql = "INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata, cdn_id, is_public, is_liked, parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;"
     fields = [user_id, '0', '0', hash, json.dumps(metadata), image_cdn_uuid, is_public, is_liked, parent_id]
@@ -684,11 +684,11 @@ def delete_link_for_user(id, user_id):
 ########################################################
 
 
-def create_video(user_id, metadata, duration, start_frame_id, start_frame_cdn_id, end_frame_id, end_frame_cdn_id, cdn_uuid, video_bytes):
+def create_video(user_id, metadata, duration, start_frame_id, start_frame_cdn_id, end_frame_id, end_frame_cdn_id, cdn_uuid, video_bytes, name):
     conn = open_connection()
     cur = create_cursor(conn)
     cur.execute(
-        "INSERT INTO videos (user_id, metadata, duration, start_frame_id, start_frame_cdn_id, end_frame_id, end_frame_cdn_id, cdn_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;", 
+        "INSERT INTO videos (user_id, metadata, duration, start_frame_id, start_frame_cdn_id, end_frame_id, end_frame_cdn_id, cdn_id, name) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;", 
         (
             user_id, 
             json.dumps(metadata), 
@@ -697,7 +697,8 @@ def create_video(user_id, metadata, duration, start_frame_id, start_frame_cdn_id
             start_frame_cdn_id, 
             end_frame_id, 
             end_frame_cdn_id,
-            cdn_uuid
+            cdn_uuid,
+            name
         )
     )
     id = cur.fetchone()[0]
