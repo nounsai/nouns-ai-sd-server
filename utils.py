@@ -402,3 +402,14 @@ def send_discord_webhook(
         return requests.post(
             url, json.dumps(data), headers={"Content-Type": "application/json"}
         )
+
+
+def _hide_seek(obj):
+    class _wrapper:
+        def __init__(self, obj):
+            self.obj = obj
+
+        def read(self, n):
+            return self.obj.read(n)
+
+    return _wrapper(obj)

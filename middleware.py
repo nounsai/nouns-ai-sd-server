@@ -12,6 +12,7 @@ import numpy
 import torch
 from PIL import Image
 from googletrans import Translator
+import io
 
 from transformers import pipeline, AutoImageProcessor, UperNetForSemanticSegmentation
 from clip_interrogator import Config, Interrogator
@@ -22,6 +23,7 @@ from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler, StableDiff
 
 from inpainting import StableDiffusionControlNetInpaintPipeline, image_to_seg
 from segment_anything import sam_model_registry
+from audio_generation import CustomMusicGen, tensor_to_audio_bytes, Demucs, preprocess_audio
 
 from utils import fetch_env_config, get_device, preprocess, adjust_thickness, \
                  BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UPSCALE_MODELS, PALETTE
@@ -55,7 +57,7 @@ PIPELINE_DICT = {
 }
 
 IMAGE_PROCESSOR = None
-IMAGE_SEGMENTOR= None
+IMAGE_SEGMENTOR = None
 DEPTH_ESTIMATOR = None
 
 def _no_validate_model_kwargs(self, model_kwargs):
@@ -67,8 +69,8 @@ def setup_pipelines():
     control_net_canny = ControlNetModel.from_pretrained("thibaud/controlnet-sd21-canny-diffusers", torch_dtype=torch.float16)
     PIPELINE_DICT['Image Processor'] = AutoImageProcessor.from_pretrained("openmmlab/upernet-convnext-small")
     PIPELINE_DICT['Image Segmentor'] = UperNetForSemanticSegmentation.from_pretrained("openmmlab/upernet-convnext-small")
-    control_net_seg = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=torch.float16)
-    control_net_seg_inpaint = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-seg', torch_dtype=torch.float16)
+    # control_net_seg = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=torch.float16)
+    # control_net_seg_inpaint = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-seg', torch_dtype=torch.float16)
     PIPELINE_DICT['Depth Estimator'] = pipeline('depth-estimation')
     control_net_depth = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=torch.float16)
     CONTROL_NET_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
@@ -84,17 +86,18 @@ def setup_pipelines():
             PIPELINE_DICT['ControlNet']['Outlines'][base_model] = StableDiffusionControlNetPipeline.from_pretrained(base_model, controlnet=control_net_canny, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['ControlNet']['Outlines'][base_model].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Outlines'][base_model].scheduler.config)
             PIPELINE_DICT['ControlNet']['Outlines'][base_model].enable_model_cpu_offload()
-            PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL] = StableDiffusionControlNetPipeline.from_pretrained(CONTROL_NET_BASE_MODEL, controlnet=control_net_seg, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-            PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].scheduler.config)
-            PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].enable_model_cpu_offload()
+        #     PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL] = StableDiffusionControlNetPipeline.from_pretrained(CONTROL_NET_BASE_MODEL, controlnet=control_net_seg, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+        #     PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].scheduler.config)
+        #     PIPELINE_DICT['ControlNet']['Segmentation'][CONTROL_NET_BASE_MODEL].enable_model_cpu_offload()
             PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL] = StableDiffusionControlNetPipeline.from_pretrained(CONTROL_NET_BASE_MODEL, controlnet=control_net_depth, safety_checker=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
             PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].scheduler.config)
             PIPELINE_DICT['ControlNet']['Depth'][CONTROL_NET_BASE_MODEL].enable_model_cpu_offload()
-        for instructable_model in INSTRUCTABLE_MODELS:
-            PIPELINE_DICT['Pix to Pix'][instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
-            PIPELINE_DICT['Pix to Pix'][instructable_model] = PIPELINE_DICT['Pix to Pix'][instructable_model].to('cuda')
-            PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler = EulerAncestralDiscreteScheduler.from_config(PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler.config)
+        # for instructable_model in INSTRUCTABLE_MODELS:
+            # PIPELINE_DICT['Pix to Pix'][instructable_model] = StableDiffusionInstructPix2PixPipeline.from_pretrained(instructable_model, safety_checker=None, feature_extractor=None, use_auth_token=config['huggingface_token'], torch_dtype=torch.float16)
+            # PIPELINE_DICT['Pix to Pix'][instructable_model] = PIPELINE_DICT['Pix to Pix'][instructable_model].to('cuda')
+            # PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler = EulerAncestralDiscreteScheduler.from_config(PIPELINE_DICT['Pix to Pix'][instructable_model].scheduler.config)
 
+        '''
         PIPELINE_DICT['Mask']['Inpainting'] = StableDiffusionControlNetInpaintPipeline.from_pretrained('runwayml/stable-diffusion-inpainting', controlnet=control_net_seg_inpaint, safety_checker=None, torch_dtype=torch.float16)
         PIPELINE_DICT['Mask']['Inpainting'].scheduler = UniPCMultistepScheduler.from_config(PIPELINE_DICT['Mask']['Inpainting'].scheduler.config)
         PIPELINE_DICT['Mask']['Inpainting'].enable_xformers_memory_efficient_attention()
@@ -110,6 +113,7 @@ def setup_pipelines():
                 f.write(res.content)
 
         PIPELINE_DICT['Mask']['SAM'] = sam_model_registry["default"](checkpoint="models/sam_vit_h_4b8939.pth").to(device='cuda')
+        '''
 
             
     else:
@@ -131,9 +135,51 @@ def setup_pipelines():
 
     return PIPELINE_DICT
 
+AUDIO_DICT = {
+    'Text to Audio': {},
+    'Audio to Audio': {},
+}
+
+def setup_audio():
+    if torch.cuda.is_available():
+        model = CustomMusicGen.get_pretrained('melody', device='cuda')
+        model.set_generation_params(duration=config.get('audio_gen_duration', 15))
+
+        AUDIO_DICT['Text to Audio']['musicgen'] = model
+        AUDIO_DICT['Audio to Audio']['demucs'] = Demucs()
+
+    return AUDIO_DICT
+
 #######################################################
 ##################### PIPELINING ######################
 #######################################################
+
+def txt_to_audio(audio_pipeline, text):
+    buffer = io.BytesIO()
+    model = audio_pipeline['Text to Audio']['musicgen']
+    res = model.generate([text], progress=True)
+    tensor_to_audio_bytes(buffer, res[0].cpu(), model.sample_rate, format='mp3')
+    buffer.seek(0)
+    return buffer.read()
+
+def txt_and_audio_to_audio(audio_pipeline, text, wav, sr):
+    buffer = io.BytesIO()
+    model = audio_pipeline['Text to Audio']['musicgen']
+    res = model.generate_with_chroma([text], wav[None].expand(1, -1, -1), sr)
+    tensor_to_audio_bytes(buffer, res[0].cpu(), model.sample_rate, format='mp3')
+    buffer.seek(0)
+    return buffer.read()
+
+def separate_audio_tracks(audio_pipline, wav, sr):
+    model = audio_pipline['Audio to Audio']['demucs']
+    wav = preprocess_audio(wav, sr, model.samplerate, model.audio_channels)
+    sources = model.separate_audio(wav)
+    for source, name in zip(sources, model.sources):
+        buffer = io.BytesIO()
+        tensor_to_audio_bytes(buffer, source.cpu(), model.samplerate, format='mp3')
+        buffer.seek(0)
+        yield buffer.read(), name
+    
 
 def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio):
 
