@@ -67,7 +67,7 @@ def generate_audios():
                 audio_bytes = txt_and_audio_to_audio(AUDIO_DICT, db_audio["metadata"]["prompt"], melody_wav, melody_sr)
 
             # upload to cdn
-            upload_audio_to_cdn(db_audio["user_id"], db_audio['id'], audio_bytes)
+            upload_audio_to_cdn(db_audio["user_id"], db_audio['cdn_id'], audio_bytes)
 
             # mark audio generation as complete
             update_audio_state(db_audio['id'], 'COMPLETED')
