@@ -531,15 +531,15 @@ def delete_image_for_user(id, user_id):
 #######################################################
 
 
-def create_audio(user_id, audio_byte_data, name, size, metadata, use_thread=True):
+def create_audio(user_id, name, size, metadata, use_thread=True):
     audio_cdn_uuid = str(uuid.uuid4())
 
     # save to database
     conn = open_connection()
     cur = create_cursor(conn)
     
-    sql = "INSERT INTO audio (user_id, name, size, metadata, cdn_id) VALUES (%s, %s, %s, %s, %s) RETURNING id;"
-    fields = [user_id, name, size, json.dumps(metadata), audio_cdn_uuid]
+    sql = "INSERT INTO audio (user_id, name, size, metadata, cdn_id, state) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id;"
+    fields = [user_id, name + audio_cdn_uuid, size, json.dumps(metadata), audio_cdn_uuid, "QUEUED"]
 
     cur.execute(sql, fields)
     id = cur.fetchone()[0]
@@ -547,12 +547,12 @@ def create_audio(user_id, audio_byte_data, name, size, metadata, use_thread=True
     conn.commit()
     close_connection(conn)
 
-    if use_thread:
+    #if use_thread:
         # Start a new thread for the slow save operation
-        save_thread = threading.Thread(target=upload_audio_to_cdn, args=(user_id, audio_cdn_uuid, audio_byte_data))
-        save_thread.start()
-    else:
-        upload_audio_to_cdn(user_id=user_id, audio_id=audio_cdn_uuid, base_64=audio_byte_data)
+    #    save_thread = threading.Thread(target=upload_audio_to_cdn, args=(user_id, audio_cdn_uuid, audio_byte_data))
+    #    save_thread.start()
+    #else:
+    #    upload_audio_to_cdn(user_id=user_id, audio_id=audio_cdn_uuid, base_64=audio_byte_data)
 
     return id, audio_cdn_uuid
 
@@ -574,12 +574,32 @@ def fetch_audios_for_user(user_id, limit, offset):
     close_connection(conn)
     return json.loads(audio_df.to_json(orient="records"))
 
+def fetch_queued_audios():
+    conn = open_connection()
+    sql = "SELECT * FROM audio WHERE state like 'QUEUED' ORDER BY updated_at asc;"
+    audio_df = pd.read_sql_query(sql, conn)
+    close_connection(conn)
+    try:
+        return json.loads(audio_df.to_json(orient="records"))
+    except Exception as e:
+        return None
+
 
 def fetch_audio_for_user(user_id, id):
 
     conn = open_connection()
     sql = "SELECT * FROM audio WHERE id=%s and user_id=%s;"
     audio_df = pd.read_sql_query(sql, conn, params=[id, user_id])
+    close_connection(conn)
+    try:
+        return json.loads(audio_df.to_json(orient="records"))[0]
+    except Exception as e:
+        return None
+    
+def fetch_audio_for_id(id):
+    conn = open_connection()
+    sql = "SELECT * FROM audio WHERE id=%s"
+    audio_df = pd.read_sql_query(sql, conn, params=[id])
     close_connection(conn)
     try:
         return json.loads(audio_df.to_json(orient="records"))[0]
@@ -592,6 +612,15 @@ def update_audio_for_user(id, user_id, name, url, size, metadata):
     conn = open_connection()
     cur = create_cursor(conn)
     cur.execute("UPDATE audio SET name=%s, url=%s, size=%s, metadata=%s WHERE id=%s and user_id=%s;", [name, url, size, json.dumps(metadata), id, user_id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+def update_audio_state(id, state):
+
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE audio SET state=%s WHERE id=%s;", [state, id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
