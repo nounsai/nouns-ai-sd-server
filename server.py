@@ -771,8 +771,10 @@ def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
                     if queuedAudio['id'] == int(audio_id):
                         audio['queue'] = index + 1
                         break
-            else:
+            elif audio['state'] == 'PROCESSING':
                 audio['queue'] = 0
+            elif audio['state'] == 'COMPLETED':
+                audio['queue'] = None
                 
             return audio, 200
         else:
