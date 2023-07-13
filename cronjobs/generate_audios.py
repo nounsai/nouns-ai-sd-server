@@ -54,7 +54,8 @@ def generate_audios():
             else:
                 db_melody = fetch_audio_for_user(db_audio["user_id"], db_audio["metadata"]["melody_id"])
                 if db_melody is None:
-                    return { 'error': 'melody not found' }, 404
+                    update_audio_state(db_audio['id'], 'ERROR')
+                    continue
                 
                 db_audio["metadata"]['parent_id'] = db_melody['id']
                 db_audio["metadata"]['mode'] = 'melody to audio'
