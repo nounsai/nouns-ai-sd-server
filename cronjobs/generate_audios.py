@@ -53,7 +53,7 @@ def generate_audios():
 
         try:
             # text to audio
-            if db_audio["metadata"]["melody_id"] is None:
+            if db_audio["metadata"].get("melody_id") is None:
                 audio_bytes = txt_to_audio(AUDIO_DICT, db_audio["metadata"]["prompt"])
 
                 # upload to cdn
@@ -141,7 +141,7 @@ def generate_audios():
         except Exception as e:
             processing_time = str(timedelta(seconds=round((datetime.now() - start_time).total_seconds())))
             
-            print(f"Error generating video for project {audio['id']}: {e}")
+            print(f"Error generating audio for project {audio['id']}: {e}")
             
 
 if __name__ == '__main__':
