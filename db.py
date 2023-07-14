@@ -531,7 +531,7 @@ def delete_image_for_user(id, user_id):
 #######################################################
 
 
-def create_audio(user_id, name, size, metadata, use_thread=True):
+def create_audio(user_id, audio_byte_data, name, size, metadata, state=None, use_thread=True):
     audio_cdn_uuid = str(uuid.uuid4())
 
     # save to database
@@ -539,7 +539,7 @@ def create_audio(user_id, name, size, metadata, use_thread=True):
     cur = create_cursor(conn)
     
     sql = "INSERT INTO audio (user_id, name, size, metadata, cdn_id, state) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id;"
-    fields = [user_id, name + audio_cdn_uuid, size, json.dumps(metadata), audio_cdn_uuid, "QUEUED"]
+    fields = [user_id, name + audio_cdn_uuid, size, json.dumps(metadata), audio_cdn_uuid, state]
 
     cur.execute(sql, fields)
     id = cur.fetchone()[0]
@@ -547,12 +547,13 @@ def create_audio(user_id, name, size, metadata, use_thread=True):
     conn.commit()
     close_connection(conn)
 
-    #if use_thread:
-        # Start a new thread for the slow save operation
-    #    save_thread = threading.Thread(target=upload_audio_to_cdn, args=(user_id, audio_cdn_uuid, audio_byte_data))
-    #    save_thread.start()
-    #else:
-    #    upload_audio_to_cdn(user_id=user_id, audio_id=audio_cdn_uuid, base_64=audio_byte_data)
+    if state == None:
+        if use_thread:
+            # Start a new thread for the slow save operation
+            save_thread = threading.Thread(target=upload_audio_to_cdn, args=(user_id, audio_cdn_uuid, audio_byte_data))
+            save_thread.start()
+        else:
+            upload_audio_to_cdn(user_id=user_id, audio_id=audio_cdn_uuid, base_64=audio_byte_data)
 
     return id, audio_cdn_uuid
 

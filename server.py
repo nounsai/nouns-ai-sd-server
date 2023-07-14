@@ -614,30 +614,13 @@ def api_create_audio(current_user_id):
             'mode': 'text to audio',
             'melody_id': melody_id
         }
-        """
-        if melody_id is None:
-            audio_bytes = txt_to_audio(AUDIO_DICT, prompt)
-        else:
-            db_melody = fetch_audio_for_user(current_user_id, melody_id)
-            if db_melody is None:
-                return { 'error': 'melody not found' }, 404
-            
-            metadata['parent_id'] = db_melody['id']
-            metadata['mode'] = 'melody to audio'
-
-            melody_url = f"https://nounsai-audio.b-cdn.net/{current_user_id}/{db_melody['cdn_id']}-full.mp3"
-            with requests.get(melody_url, stream=True) as response:
-                melody_wav, melody_sr = torchaudio.load(_hide_seek(response.raw))
-            
-            audio_bytes = txt_and_audio_to_audio(AUDIO_DICT, prompt, melody_wav, melody_sr)
-        """
 
         id, cdn_id = create_audio(
             user_id=current_user_id, 
             name='generated.mp3', 
             size=0, 
             metadata=metadata,
-            use_thread=False
+            state="QUEUED"
         )
 
         return {
@@ -706,20 +689,20 @@ def api_create_audio_for_user(current_user_id, user_id):
         try:
             if (use_thread is not None):
                 id, cdn_id = create_audio(
-                    current_user_id,
-                    audio_data,
-                    audio_file.filename,
-                    audio_file.content_length,
-                    {},
+                    user_id=current_user_id,
+                    audio_byte_data=audio_data,
+                    name=audio_file.filename,
+                    size=audio_file.content_length,
+                    metadata={},
                     use_thread=False
                 )
             else:
                 id, cdn_id = create_audio(
-                    current_user_id,
-                    audio_data,
-                    audio_file.filename,
-                    audio_file.content_length,
-                    {}
+                    user_id=current_user_id,
+                    audio_byte_data=audio_data,
+                    name=audio_file.filename,
+                    size=audio_file.content_length,
+                    metadata={},
                 )
             return { 'id': id, 'cdn_id': cdn_id }, 200
         except Exception as e:
