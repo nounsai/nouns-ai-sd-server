@@ -531,7 +531,7 @@ def delete_image_for_user(id, user_id):
 #######################################################
 
 
-def create_audio(user_id, audio_byte_data, name, size, metadata, state=None, use_thread=True):
+def create_audio(user_id, name, size, metadata, state=None, audio_byte_data=None, use_thread=True):
     audio_cdn_uuid = str(uuid.uuid4())
 
     # save to database
@@ -608,11 +608,20 @@ def fetch_audio_for_id(id):
         return None
 
 
-def update_audio_for_user(id, user_id, name, url, size, metadata):
+def update_audio_for_user(id, user_id, name, size, metadata):
 
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("UPDATE audio SET name=%s, url=%s, size=%s, metadata=%s WHERE id=%s and user_id=%s;", [name, url, size, json.dumps(metadata), id, user_id])
+    cur.execute("UPDATE audio SET name=%s, size=%s, metadata=%s WHERE id=%s and user_id=%s;", [name, size, json.dumps(metadata), id, user_id])
+    close_cursor(cur)
+    conn.commit()
+    close_connection(conn)
+
+def update_audio_metadata(id, metadata):
+    
+    conn = open_connection()
+    cur = create_cursor(conn)
+    cur.execute("UPDATE audio SET metadata=%s WHERE id=%s;", [json.dumps(metadata), id])
     close_cursor(cur)
     conn.commit()
     close_connection(conn)

@@ -640,33 +640,22 @@ def api_split_audio(current_user_id):
     try:
         data = json.loads(request.data)
         audio_id = data['id']
-        db_audio = fetch_audio_for_user(current_user_id, audio_id)
-        if db_audio is None:
-            return { 'error': 'audio not found' }, 404
-        audio_url = f"https://nounsai-audio.b-cdn.net/{current_user_id}/{db_audio['cdn_id']}-full.mp3"
-        with requests.get(audio_url, stream=True) as response:
-            wav, sr = torchaudio.load(_hide_seek(response.raw))
-        
-        result = []
-        for audio_bytes, name in separate_audio_tracks(AUDIO_DICT, wav, sr):
-            id, cdn_id = create_audio(
+
+        id, cdn_id = create_audio(
                 user_id=current_user_id, 
-                audio_byte_data=audio_bytes, 
-                name=f'{name}:::' + db_audio['name'], 
+                name=f'queuedSplit{audio_id}.mp3', 
                 size=0, 
                 metadata={
-                    'parent_id': db_audio['id'],
+                    'parent_id': audio_id,
                     'mode': 'audio split'
                 },
-                use_thread=False
+                state="QUEUED"
             )
-            result.append({
-                'id': id,
-                'cdn_id': cdn_id,
-                'type': name
-            })
-        
-        return result, 200
+
+        return {
+            'id': id,
+            'cdn_id': cdn_id
+        }, 200
 
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
