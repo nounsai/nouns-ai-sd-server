@@ -115,7 +115,7 @@ def generate_videos():
             for record in image_records:
                 image_contents = download_image_from_cdn(record['user_id'], record['cdn_id'])
                 images.append(Image.open(BytesIO(image_contents)).convert('RGB'))
-                if record['meta'].get('video_cdn_id', None) is not None:
+                if record['metadata'].get('video_cdn_id', None) is not None:
                     video_urls.append(record['meta']['video_cdn_id'])
                 else:
                     video_urls.append(None)
