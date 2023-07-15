@@ -434,7 +434,7 @@ def extract_start_and_end_frames(video_bytes):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = cap.get(cv2.CAP_PROP_FPS)
 
-        duration = round(total_frames / fps)
+        duration = round(total_frames / fps, 1)
 
         # Get the first frame
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
