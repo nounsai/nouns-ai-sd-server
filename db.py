@@ -12,7 +12,7 @@ import psycopg2.extras
 import uuid
 import datetime
 
-from cdn import upload_image_to_cdn, delete_image_from_cdn, upload_audio_to_cdn, delete_audio_from_cdn
+from cdn import upload_image_to_cdn, delete_image_from_cdn, upload_audio_to_cdn, delete_audio_from_cdn, upload_video_project_to_cdn
 
 from configparser import ConfigParser
 
@@ -399,7 +399,7 @@ def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, 
     
     user_images_with_hash = fetch_images_for_user_with_hash(user_id, hash)
     if len(user_images_with_hash) > 0:
-        return user_images_with_hash[0]['id']
+        return user_images_with_hash[0]['id'], user_images_with_hash[0]['cdn_id']
     
     sql = "INSERT INTO images (user_id, base_64, thumb_base_64, hash, metadata, cdn_id, is_public, is_liked, parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;"
     fields = [user_id, '0', '0', hash, json.dumps(metadata), image_cdn_uuid, is_public, is_liked, parent_id]
@@ -422,7 +422,7 @@ def create_image(user_id, image_byte_data, thumbnail_byte_data, hash, metadata, 
             thumbnail_byte_data
         )
 
-    return id
+    return id, image_cdn_uuid
 
 
 def fetch_images(limit, offset):
@@ -723,15 +723,30 @@ def delete_link_for_user(id, user_id):
 ########################################################
 
 
-def create_video(user_id, metadata):
-    
+def create_video(user_id, metadata, duration, start_frame_id, start_frame_cdn_id, end_frame_id, end_frame_cdn_id, cdn_uuid, video_bytes, name):
     conn = open_connection()
     cur = create_cursor(conn)
-    cur.execute("INSERT INTO videos (user_id, metadata) VALUES (%s, %s) RETURNING id;", (user_id, json.dumps(metadata)))
+    cur.execute(
+        "INSERT INTO videos (user_id, metadata, duration, start_frame_id, start_frame_cdn_id, end_frame_id, end_frame_cdn_id, cdn_id, name) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;", 
+        (
+            user_id, 
+            json.dumps(metadata), 
+            duration, 
+            start_frame_id, 
+            start_frame_cdn_id, 
+            end_frame_id, 
+            end_frame_cdn_id,
+            cdn_uuid,
+            name
+        )
+    )
     id = cur.fetchone()[0]
     close_cursor(cur)
     conn.commit()
     close_connection(conn)
+
+    upload_video_project_to_cdn(user_id, cdn_uuid, video_bytes)
+
     return id
 
 
@@ -756,11 +771,11 @@ def fetch_video(id):
         return None
 
 
-def fetch_videos_for_user(user_id, limit, offset):
+def fetch_videos_for_user(user_id):
 
     conn = open_connection()
-    sql = "SELECT * FROM videos where user_id=%s ORDER BY id DESC LIMIT %s OFFSET %s;"
-    videos_df = pd.read_sql_query(sql, conn, params=[user_id, limit, offset])
+    sql = "SELECT * FROM videos where user_id=%s;"
+    videos_df = pd.read_sql_query(sql, conn, params=[user_id])
     close_connection(conn)
     return json.loads(videos_df.to_json(orient="records"))
 

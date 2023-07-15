@@ -13,7 +13,13 @@ import json
 import time
 import librosa
 
+import tempfile
+import cv2
+import requests
+
 from pathlib import Path
+
+from utils import cv2_to_pil
 
 def get_timesteps_arr(audio_filepath, offset, duration, fps=30, margin=1.0, smooth=0.0, sr=None):
     y, sr = librosa.load(audio_filepath, offset=offset, duration=duration, sr=sr)
@@ -462,11 +468,54 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
                     image = image if not upsample else self.upsampler(image)
                     image.save(frame_filepath)
                     frame_index += 1
+
+    def embed_video(self, video_url, fps, save_path, skip, width, height, image_file_ext='.png'):
+        save_path = Path(save_path)
+        save_path.mkdir(parents=True, exist_ok=True)
+
+        r = requests.get(video_url, stream=True)
+        # download video
+        with tempfile.NamedTemporaryFile() as temp:
+            for chunk in r.iter_content(chunk_size = 1024 * 1024):
+                if chunk:
+                    temp.write(chunk)
+
+            cap = cv2.VideoCapture(video_url)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
+            in_fps = cap.get(cv2.CAP_PROP_FPS)
+
+            fps_out = fps
+
+            index_in = -1
+            index_out = -1
+            frame_counter = 0
+
+            while True:
+                success = cap.grab()
+                if not success: break
+                index_in += 1
+
+                out_due = int(index_in / in_fps * fps_out)
+                if out_due > index_out:
+                    success, frame = cap.retrieve()
+                    if not success: break
+                    index_out += 1
+
+                    # frame
+                    frame_pil = cv2_to_pil(frame)
+                    frame_pil = frame_pil.resize((width, height), resample=PIL.Image.LANCZOS)
+                    frame_filepath = save_path / (f"frame%06d{image_file_ext}" % (skip + frame_counter))
+                    frame_pil.save(frame_filepath)
+                    frame_counter += 1
+
+            cap.release()
     
     def walk(
         self,
         images,
         prompts = None,
+        video_urls = None,
         num_interpolation_steps: Optional[Union[int, List[int]]] = 5,  # int or list of int
         output_dir: Optional[str] = "./dreams",
         name: Optional[str] = None,
@@ -687,41 +736,59 @@ class Image2ImageWalkPipeline(StableDiffusionWalkPipeline):
                 prompt_a = self.image_to_caption(image_a_re)
             if prompt_b is None or len(prompt_b) == 0:
                 prompt_b = self.image_to_caption(image_b_re)
+
+            video_a = False
+            video_b = False
+            if video_urls is not None:
+                if video_urls[i] is not None:
+                    video_a = True
+                if video_urls[i + 1] is not None:
+                    video_b = True
             
             # generate seeds
             seed_a = self.random_seed()
             seed_b = self.random_seed()
 
-            self.make_clip_frames(
-                image_a_re,
-                image_b_re,
-                prompt_a,
-                prompt_b,
-                seed_a,
-                seed_b,
-                num_interpolation_steps=num_step,
-                save_path=save_path,
-                num_inference_steps=num_inference_steps,
-                guidance_scale=guidance_scale,
-                eta=eta,
-                height=height,
-                width=width,
-                upsample=upsample,
-                batch_size=batch_size,
-                T=get_timesteps_arr(
-                    audio_filepath,
-                    offset=audio_offset,
-                    duration=audio_duration,
+            if video_a and video_b:
+                self.embed_video(
+                    video_url=video_urls[i],
                     fps=fps,
-                    margin=margin,
-                    smooth=smooth,
+                    save_path=save_path,
+                    skip=skip,
+                    width=width,
+                    height=height
                 )
-                if audio_filepath
-                else None,
-                skip=skip,
-                negative_prompt=negative_prompt,
-                step=(i, len(images) - 1),
-            )
+            else:
+                self.make_clip_frames(
+                    image_a_re,
+                    image_b_re,
+                    prompt_a,
+                    prompt_b,
+                    seed_a,
+                    seed_b,
+                    num_interpolation_steps=num_step,
+                    save_path=save_path,
+                    num_inference_steps=num_inference_steps,
+                    guidance_scale=guidance_scale,
+                    eta=eta,
+                    height=height,
+                    width=width,
+                    upsample=upsample,
+                    batch_size=batch_size,
+                    T=get_timesteps_arr(
+                        audio_filepath,
+                        offset=audio_offset,
+                        duration=audio_duration,
+                        fps=fps,
+                        margin=margin,
+                        smooth=smooth,
+                    )
+                    if audio_filepath
+                    else None,
+                    skip=skip,
+                    negative_prompt=negative_prompt,
+                    step=(i, len(images) - 1),
+                )
 
             # update prompts
             prompt_a = prompt_b

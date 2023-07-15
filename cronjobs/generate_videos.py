@@ -111,9 +111,17 @@ def generate_videos():
 
             # get image contents
             images = []
+            video_urls = []
             for record in image_records:
                 image_contents = download_image_from_cdn(record['user_id'], record['cdn_id'])
                 images.append(Image.open(BytesIO(image_contents)).convert('RGB'))
+                if record['metadata'].get('video_cdn_id', None) is not None:
+                    video_cdn_id = record['metadata']['video_cdn_id']
+                    video_urls.append(
+                        f"https://nounsai-video.b-cdn.net/{record['user_id']}/{video_cdn_id}-full.mp4"
+                    )
+                else:
+                    video_urls.append(None)
 
             # get project audio
             audio = fetch_audio_for_user(project['user_id'], project['audio_id'])
@@ -139,6 +147,7 @@ def generate_videos():
             video_path = pipe.walk(
                 images=images,
                 prompts=prompts,
+                video_urls=video_urls,
                 num_interpolation_steps=num_interpolation_steps,
                 audio_filepath=audio_path,
                 audio_start_sec=audio_offsets[0],
