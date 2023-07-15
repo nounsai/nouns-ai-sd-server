@@ -48,7 +48,7 @@ if config['server_type'] == 'gpu':
         txt_and_audio_to_audio, setup_audio, 
         separate_audio_tracks
     )
-    AUDIO_DICT = setup_audio()
+    # AUDIO_DICT = setup_audio()
     PIPELINE_DICT = setup_pipelines()
 
 app = Flask(__name__)
