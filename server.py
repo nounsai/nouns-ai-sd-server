@@ -26,7 +26,7 @@ from sendgrid.helpers.mail import Mail, To
 from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image, _hide_seek
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
-        create_audio, fetch_audios, fetch_audios_for_user, fetch_audio_for_user, update_audio_for_user, delete_audio_and_video_project_for_user, \
+        create_audio, fetch_audios, fetch_audios_for_user, fetch_queued_audios, fetch_audio_for_user, update_audio_for_user, delete_audio_and_video_project_for_user, \
         create_link, fetch_links, fetch_link, fetch_links_for_user, update_link_for_user, delete_link_for_user, \
         create_video, fetch_video, fetch_video_for_user, fetch_videos_for_user, update_video_for_user, delete_video_for_user, \
         fetch_user_for_verify_key, verify_user_for_id, create_password_reset_for_user, get_password_reset, verify_password_reset, \
@@ -611,33 +611,16 @@ def api_create_audio(current_user_id):
 
         metadata = {
             'prompt': prompt,
-            'mode': 'text to audio'
+            'mode': 'text to audio',
+            'melody_id': melody_id
         }
-
-        if melody_id is None:
-            audio_bytes = txt_to_audio(AUDIO_DICT, prompt)
-        else:
-            db_melody = fetch_audio_for_user(current_user_id, melody_id)
-            if db_melody is None:
-                return { 'error': 'melody not found' }, 404
-            
-            metadata['parent_id'] = db_melody['id']
-            metadata['mode'] = 'melody to audio'
-
-            melody_url = f"https://nounsai-audio.b-cdn.net/{current_user_id}/{db_melody['cdn_id']}-full.mp3"
-            with requests.get(melody_url, stream=True) as response:
-                melody_wav, melody_sr = torchaudio.load(_hide_seek(response.raw))
-            
-            audio_bytes = txt_and_audio_to_audio(AUDIO_DICT, prompt, melody_wav, melody_sr)
-
 
         id, cdn_id = create_audio(
             user_id=current_user_id, 
-            audio_byte_data=audio_bytes, 
             name='generated.mp3', 
             size=0, 
             metadata=metadata,
-            use_thread=False
+            state="QUEUED"
         )
 
         return {
@@ -657,33 +640,22 @@ def api_split_audio(current_user_id):
     try:
         data = json.loads(request.data)
         audio_id = data['id']
-        db_audio = fetch_audio_for_user(current_user_id, audio_id)
-        if db_audio is None:
-            return { 'error': 'audio not found' }, 404
-        audio_url = f"https://nounsai-audio.b-cdn.net/{current_user_id}/{db_audio['cdn_id']}-full.mp3"
-        with requests.get(audio_url, stream=True) as response:
-            wav, sr = torchaudio.load(_hide_seek(response.raw))
-        
-        result = []
-        for audio_bytes, name in separate_audio_tracks(AUDIO_DICT, wav, sr):
-            id, cdn_id = create_audio(
+
+        id, cdn_id = create_audio(
                 user_id=current_user_id, 
-                audio_byte_data=audio_bytes, 
-                name=f'{name}:::' + db_audio['name'], 
+                name=f'queuedSplit{audio_id}.mp3', 
                 size=0, 
                 metadata={
-                    'parent_id': db_audio['id'],
+                    'parent_id': audio_id,
                     'mode': 'audio split'
                 },
-                use_thread=False
+                state="QUEUED"
             )
-            result.append({
-                'id': id,
-                'cdn_id': cdn_id,
-                'type': name
-            })
-        
-        return result, 200
+
+        return {
+            'id': id,
+            'cdn_id': cdn_id
+        }, 200
 
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
@@ -706,20 +678,20 @@ def api_create_audio_for_user(current_user_id, user_id):
         try:
             if (use_thread is not None):
                 id, cdn_id = create_audio(
-                    current_user_id,
-                    audio_data,
-                    audio_file.filename,
-                    audio_file.content_length,
-                    {},
+                    user_id=current_user_id,
+                    audio_byte_data=audio_data,
+                    name=audio_file.filename,
+                    size=audio_file.content_length,
+                    metadata={},
                     use_thread=False
                 )
             else:
                 id, cdn_id = create_audio(
-                    current_user_id,
-                    audio_data,
-                    audio_file.filename,
-                    audio_file.content_length,
-                    {}
+                    user_id=current_user_id,
+                    audio_byte_data=audio_data,
+                    name=audio_file.filename,
+                    size=audio_file.content_length,
+                    metadata={},
                 )
             return { 'id': id, 'cdn_id': cdn_id }, 200
         except Exception as e:
@@ -753,29 +725,35 @@ def api_fetch_audios_for_user(current_user_id, user_id):
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
-# @app.route('/users/<user_id>/audios/<audio_id>', methods=['GET'])
-# @auth_token_required
-# @limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
-# def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
+@app.route('/users/<user_id>/audios/<audio_id>', methods=['GET'])
+@auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_fetch_audio_for_user(current_user_id, user_id, audio_id):
 
-#     if user_id != current_user_id:
-#         return jsonify({'message': 'Wrong user!'}), 400
+    if user_id != current_user_id:
+        return jsonify({'message': 'Wrong user!'}), 400
+
+    try:
+        audio = fetch_audio_for_user(current_user_id, audio_id)
     
-#     try:
-#         audio = fetch_audio_for_user(current_user_id, audio_id)
-        
-#         if audio is not None:
-#             audioData = download_audio_from_cdn(user_id, audio['cdn_id'])
-#             if audioData == None:
-#                 raise Exception("Audio not found in CDN")    
-#             audio['data'] = audioData
-    
-#             return audio, 200
-#         else:
-#             return { 'error': "Audio not found" }, 404
-#     except Exception as e:
-#         print("Internal server error: {}".format(str(e)))
-#         return { 'error': "Internal server error: {}".format(str(e)) }, 500
+        if audio is not None:
+            if audio['state'] == 'QUEUED':
+                queue = fetch_queued_audios()
+                for index, queuedAudio in enumerate(queue):
+                    if queuedAudio['id'] == int(audio_id):
+                        audio['queue'] = index + 1
+                        break
+            elif audio['state'] == 'PROCESSING':
+                audio['queue'] = 0
+            elif audio['state'] == 'COMPLETED':
+                audio['queue'] = None
+                
+            return audio, 200
+        else:
+            return { 'error': "Audio not found" }, 404
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/users/<user_id>/audios/<audio_id>', methods=['PUT'])
 @auth_token_required

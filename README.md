@@ -1,25 +1,32 @@
 # Nouns AI SD Server
 
 ## Activating / Deactivating Virtual Environment
+
 ```
 source nouns-ai/bin/activate
 deactivate
 ```
 
 ## Server Config
+
 ### Setup
+
 [How we set up the server with Flask, Nginx, Gunicorn, and CertBot](https://www.digitalocean.com/community/tutorials/how-to-serve-flask-applications-with-gunicorn-and-nginx-on-ubuntu-22-04)
 
 ### Manually starting the server with gunicorn
+
 `gunicorn --bind 0.0.0.0:5000 wsgi:app --timeout 30000`
 
 ### Starting the server
+
 `sudo systemctl start nouns-ai-sd-server`
 
 ### Stopping the server
+
 `sudo systemctl stop nouns-ai-sd-server`
 
 ### Restarting the server
+
 `sudo systemctl restart nouns-ai-sd-server`
 
 _Note: This utilizes `/etc/systemd/system/nouns-ai-sd-server.service`_
@@ -27,6 +34,7 @@ _Note: This utilizes `/etc/systemd/system/nouns-ai-sd-server.service`_
 # Database
 
 ## Users
+
 ```sql
 CREATE TABLE users (
     id INT GENERATED ALWAYS AS IDENTITY,
@@ -42,6 +50,7 @@ CREATE TABLE users (
 ```
 
 ## Password Resets
+
 ```sql
 CREATE TABLE password_recovery (
     id INT GENERATED ALWAYS AS IDENTITY,
@@ -53,6 +62,7 @@ CREATE TABLE password_recovery (
 ```
 
 ## Images
+
 ```sql
 CREATE TABLE images (
     id INT GENERATED ALWAYS AS IDENTITY,
@@ -73,6 +83,7 @@ CREATE TABLE images (
 ```
 
 ## Audio
+
 ```sql
 CREATE TABLE audio (
     id INT GENERATED ALWAYS AS IDENTITY,
@@ -83,6 +94,7 @@ CREATE TABLE audio (
     metadata JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    state VARCHAR(36) DEFAULT 'UNFINISHED',
     PRIMARY KEY(id),
     UNIQUE (user_id, name, url),
     CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -90,6 +102,7 @@ CREATE TABLE audio (
 ```
 
 ## Videos
+
 ```sql
 CREATE TABLE videos (
     id INT GENERATED ALWAYS AS IDENTITY,
@@ -103,6 +116,7 @@ CREATE TABLE videos (
 ```
 
 ## Links
+
 ```sql
 CREATE TABLE links (
     id INT GENERATED ALWAYS AS IDENTITY,
@@ -136,6 +150,7 @@ CREATE TABLE api_hosts (
 ```
 
 ## Referrals
+
 ```sql
 CREATE TABLE referrals (
     id INT GENERATED ALWAYS AS IDENTITY,
@@ -151,6 +166,7 @@ CREATE TABLE referrals (
 ```
 
 ## Rewards
+
 ```sql
 CREATE TABLE rewards (
     id INT GENERATED ALWAYS AS IDENTITY,
@@ -164,6 +180,7 @@ CREATE TABLE rewards (
 ```
 
 ## Transactions
+
 ```sql
 CREATE TABLE transactions (
     id INT GENERATED ALWAYS AS IDENTITY,
@@ -182,6 +199,7 @@ CREATE TABLE transactions (
 ```
 
 ## Video Projects
+
 ```sql
 CREATE TABLE video_projects (
   id INT GENERATED ALWAYS AS IDENTITY,
