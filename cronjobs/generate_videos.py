@@ -116,7 +116,10 @@ def generate_videos():
                 image_contents = download_image_from_cdn(record['user_id'], record['cdn_id'])
                 images.append(Image.open(BytesIO(image_contents)).convert('RGB'))
                 if record['metadata'].get('video_cdn_id', None) is not None:
-                    video_urls.append(record['metadata']['video_cdn_id'])
+                    video_cdn_id = record['metadata']['video_cdn_id']
+                    video_urls.append(
+                        f"https://nounsai-video.b-cdn.net/{record['user_id']}/{video_cdn_id}-full.mp4"
+                    )
                 else:
                     video_urls.append(None)
 
