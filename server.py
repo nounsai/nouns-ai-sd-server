@@ -636,7 +636,7 @@ def api_create_audio(current_user_id):
 @app.route('/audio-extend', methods=['POST'])
 @auth_token_required
 @limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
-def api_split_audio(current_user_id):
+def api_extend_audio(current_user_id):
 
     try:
         data = json.loads(request.data)
