@@ -631,6 +631,44 @@ def api_create_audio(current_user_id):
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500
+    
+
+@app.route('/audio-extend', methods=['POST'])
+@auth_token_required
+@limiter.limit('10 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_split_audio(current_user_id):
+
+    try:
+        data = json.loads(request.data)
+        audio_id = data['id']
+        db_audio = fetch_audio_for_user(current_user_id, audio_id)
+        if db_audio is None:
+            return { 'error': 'Audio not found' }, 404
+        
+        prompt = data.get('prompt', None)
+        if not isinstance(prompt, str):
+            prompt = db_audio['metadata'].get('prompt', None)
+
+        id, cdn_id = create_audio(
+                user_id=current_user_id, 
+                name=f'extended-{db_audio["name"]}', 
+                size=0, 
+                metadata={
+                    'prompt': prompt,
+                    'parent_id': audio_id,
+                    'mode': 'audio extend'
+                },
+                state="QUEUED"
+            )
+
+        return {
+            'id': id,
+            'cdn_id': cdn_id
+        }, 200
+
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
 
 @app.route('/audio-split', methods=['POST'])
 @auth_token_required
