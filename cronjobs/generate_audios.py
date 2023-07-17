@@ -1,8 +1,8 @@
 import os 
 import sys
-from functools import reduce
 import requests
 from datetime import datetime, timedelta
+import traceback
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PARENT_DIR)
@@ -163,6 +163,7 @@ def generate_audios():
             processing_time = str(timedelta(seconds=round((datetime.now() - start_time).total_seconds())))
 
         except Exception as e:
+            print(traceback.format_exc())
             processing_time = str(timedelta(seconds=round((datetime.now() - start_time).total_seconds())))
             
             print(f"Error generating audio for project {audio['id']}: {e}")
