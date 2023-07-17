@@ -181,7 +181,7 @@ def continue_audio(audio_pipeline, text, wav, sr, overlap = 1):
     # generate continuation
     res = model.generate_continuation(batched[:, :, -overlap * model.sample_rate:], model.sample_rate, text)
     # combine audio 
-    combined = torch.cat(wav[:, :, :-overlap * model.sample_rate], res, dim=2)
+    combined = torch.cat(batched[:, :, :-overlap * model.sample_rate], res, dim=2)
     # write to buffer and return bytes
     tensor_to_audio_bytes(buffer, combined[0].cpu(), model.sample_rate, format='mp3')
     buffer.seek(0)
