@@ -34,7 +34,8 @@ from db import create_user, fetch_user, fetch_user_for_email, update_user, delet
         create_video_project, fetch_video_project_for_user, fetch_video_projects_for_user, update_video_project_for_user, delete_video_project_for_user, \
         update_user_referral_token, fetch_user_for_referral_token, create_referral, fetch_referral_for_referred, \
         execute_reward, update_user_metadata, create_transaction, fetch_transactions_for_user, \
-        update_video_project_state, fetch_video_project_for_id, fetch_image, update_video_project_cdn_id
+        update_video_project_state, fetch_video_project_for_id, fetch_image, update_video_project_cdn_id, \
+        fetch_image_with_cdn_id
 from cdn import download_audio_from_cdn, delete_video_project_from_cdn
 
 import torchaudio
@@ -471,6 +472,19 @@ def api_fetch_images():
             offset
         )
         return images, 200
+    except Exception as e:
+        print("Internal server error: {}".format(str(e)))
+        return { 'error': "Internal server error: {}".format(str(e)) }, 500
+
+
+@app.route('/templates/<template_id>', methods=['GET'])
+@challenge_token_required
+@limiter.limit('15 per minute', key_func=lambda: g.get('current_user_id', request.remote_addr))
+def api_get_template(template_id):
+
+    try:
+        image = fetch_image_with_cdn_id(template_id)
+        return image, 200
     except Exception as e:
         print("Internal server error: {}".format(str(e)))
         return { 'error': "Internal server error: {}".format(str(e)) }, 500

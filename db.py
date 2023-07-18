@@ -444,6 +444,18 @@ def fetch_image(id):
         return json.loads(images_df.to_json(orient="records"))[0]
     except Exception as e:
         return None
+    
+
+def fetch_image_with_cdn_id(id):
+
+    conn = open_connection()
+    sql = "SELECT * FROM images WHERE cdn_id=%s;"
+    images_df = pd.read_sql_query(sql, conn, params=[id])
+    close_connection(conn)
+    try:
+        return json.loads(images_df.to_json(orient="records"))[0]
+    except Exception as e:
+        return None
 
 
 def fetch_images_with_hash(hash):
