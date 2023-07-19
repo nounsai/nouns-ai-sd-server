@@ -25,7 +25,7 @@ from inpainting import StableDiffusionControlNetInpaintPipeline, image_to_seg
 from segment_anything import sam_model_registry
 from audio_generation import CustomMusicGen, tensor_to_audio_bytes, Demucs, preprocess_audio
 
-from utils import fetch_env_config, get_device, preprocess, adjust_thickness, \
+from nouns_utils import fetch_env_config, get_device, preprocess, adjust_thickness, \
                  BASE_MODELS, INSTRUCTABLE_MODELS, INTERROGATOR_MODELS, TEXT_MODELS, UPSCALE_MODELS, PALETTE
 
 config = fetch_env_config()

@@ -23,7 +23,7 @@ from cdn import (
     upload_audio_to_cdn,
 )
 
-from utils import fetch_env_config, _hide_seek
+from nouns_utils import fetch_env_config, _hide_seek
 
 from PIL import Image
 from io import BytesIO
