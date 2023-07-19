@@ -1,6 +1,6 @@
 import requests
 import base64
-from nouns_utils import fetch_env_config
+from utils import fetch_env_config
 
 config = fetch_env_config()
 

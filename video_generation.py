@@ -19,7 +19,7 @@ import requests
 
 from pathlib import Path
 
-from nouns_utils import cv2_to_pil
+from utils import cv2_to_pil
 
 def get_timesteps_arr(audio_filepath, offset, duration, fps=30, margin=1.0, smooth=0.0, sr=None):
     y, sr = librosa.load(audio_filepath, offset=offset, duration=duration, sr=sr)

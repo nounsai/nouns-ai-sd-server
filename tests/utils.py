@@ -5,7 +5,7 @@ import base64
 import jwt
 import datetime
 
-from nouns_utils import fetch_env_config
+from utils import fetch_env_config
 
 config = fetch_env_config()
 

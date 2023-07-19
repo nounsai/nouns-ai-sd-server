@@ -3,7 +3,7 @@ import os
 import sys
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PARENT_DIR)
-from nouns_utils import bytes_from_image, thumbnail_bytes_for_image
+from utils import bytes_from_image, thumbnail_bytes_for_image
 from db import create_image
 import hashlib
 import base64
