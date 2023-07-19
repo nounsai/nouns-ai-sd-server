@@ -2,7 +2,7 @@ import sys
 import requests
 
 from db import fetch_videos
-from utils import fetch_env_config
+from nouns_utils import fetch_env_config
 
 config = fetch_env_config()
 
