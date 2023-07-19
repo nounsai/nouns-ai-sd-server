@@ -3,7 +3,7 @@ from flask_cors import CORS
 from flask import Flask, request, Response
 
 from db import fetch_api_hosts
-from nouns_utils import fetch_env_config
+from utils import fetch_env_config
 
 app = Flask('__main__')
 CORS(app)

@@ -17,7 +17,7 @@ from cdn import upload_image_to_cdn, delete_image_from_cdn, upload_audio_to_cdn,
 from configparser import ConfigParser
 
 warnings.simplefilter(action='ignore', category=UserWarning)
-from nouns_utils import fetch_env_config
+from utils import fetch_env_config
 
 config = fetch_env_config()
 

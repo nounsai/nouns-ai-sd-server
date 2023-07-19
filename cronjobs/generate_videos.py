@@ -29,7 +29,7 @@ from cdn import (
 
 from video_generation import Image2ImageWalkPipeline
 
-from nouns_utils import fetch_env_config, get_device, send_discord_webhook
+from utils import fetch_env_config, get_device, send_discord_webhook
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
