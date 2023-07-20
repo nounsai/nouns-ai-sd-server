@@ -13,6 +13,7 @@ import torch
 from PIL import Image
 from googletrans import Translator
 import io
+import torchaudio
 
 from transformers import pipeline, AutoImageProcessor, UperNetForSemanticSegmentation
 from clip_interrogator import Config, Interrogator
@@ -167,6 +168,22 @@ def txt_and_audio_to_audio(audio_pipeline, text, wav, sr):
     model = audio_pipeline['Text to Audio']['musicgen']
     res = model.generate_with_chroma([text], wav[None].expand(1, -1, -1), sr)
     tensor_to_audio_bytes(buffer, res[0].cpu(), model.sample_rate, format='mp3')
+    buffer.seek(0)
+    return buffer.read()
+
+def continue_audio(audio_pipeline, text, wav, sr, overlap = 1):
+    buffer = io.BytesIO()
+    model = audio_pipeline['Text to Audio']['musicgen']
+    # resample to keep consistent sample rate
+    resampled = torchaudio.functional.resample(wav, orig_freq=sr, new_freq=model.sample_rate)
+    # add a batch dimension
+    batched = resampled[None].expand(1, -1, -1)
+    # generate continuation
+    res = model.generate_continuation(batched[:, :, -overlap * model.sample_rate:], model.sample_rate, text)
+    # combine audio 
+    combined = torch.cat([batched[:, :, :-overlap * model.sample_rate].to('cuda'), res.to('cuda')], dim=2)
+    # write to buffer and return bytes
+    tensor_to_audio_bytes(buffer, combined[0].cpu(), model.sample_rate, format='mp3')
     buffer.seek(0)
     return buffer.read()
 

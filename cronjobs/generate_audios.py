@@ -1,8 +1,8 @@
 import os 
 import sys
-from functools import reduce
 import requests
 from datetime import datetime, timedelta
+import traceback
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PARENT_DIR)
@@ -35,7 +35,8 @@ from audio_generation import CustomMusicGen, tensor_to_audio_bytes, Demucs, prep
 from middleware import (
         txt_to_audio, 
         txt_and_audio_to_audio, setup_audio, 
-        separate_audio_tracks
+        separate_audio_tracks,
+        continue_audio
     )
 AUDIO_DICT = setup_audio()
 
@@ -113,6 +114,29 @@ def generate_audios():
                                 'result': result
                             })
                 update_audio_state(db_audio['id'], 'COMPLETED')
+
+            # audio continuation
+            elif db_audio["metadata"]["mode"] == "audio extend":
+                audio_id = db_audio["metadata"]["parent_id"]
+                prompt = db_audio['metadata'].get('prompt', None)
+                if prompt is not None:
+                    prompt = [prompt]
+                db_melody = fetch_audio_for_user(db_audio["user_id"], audio_id)
+                if db_melody is None:
+                    update_audio_state(db_audio['id'], 'ERROR')
+                    continue
+                audio_url = f"https://nounsai-audio.b-cdn.net/{db_melody['user_id']}/{db_melody['cdn_id']}-full.mp3"
+                with requests.get(audio_url, stream=True) as response:
+                    wav, sr = torchaudio.load(_hide_seek(response.raw))
+
+                audio_bytes = continue_audio(AUDIO_DICT, prompt, wav, sr)
+
+                # upload to cdn
+                upload_audio_to_cdn(db_audio["user_id"], db_audio['cdn_id'], audio_bytes)
+
+                # mark audio generation as complete
+                update_audio_state(db_audio['id'], 'COMPLETED')
+            
             # text to audio to audio
             else:
                 db_melody = fetch_audio_for_user(db_audio["user_id"], db_audio["metadata"]["melody_id"])
@@ -139,6 +163,7 @@ def generate_audios():
             processing_time = str(timedelta(seconds=round((datetime.now() - start_time).total_seconds())))
 
         except Exception as e:
+            print(traceback.format_exc())
             processing_time = str(timedelta(seconds=round((datetime.now() - start_time).total_seconds())))
             
             print(f"Error generating audio for project {audio['id']}: {e}")
