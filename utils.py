@@ -44,6 +44,9 @@ config = fetch_env_config()
 BASE_MODELS = [
     'alxdfy/noggles-v21-6400-best'
 ]
+REPLICATE_MODELS = [
+    'alx-ai/sdxl-noggles-nowrong:9a487e8991d1d9a2ea46a3e4933cafff201f5512b037cc046ff1cce878b143ef'
+]
 INSTRUCTABLE_MODELS = [
     'timbrooks/instruct-pix2pix'
 ]

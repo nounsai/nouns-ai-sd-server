@@ -24,7 +24,7 @@ from flask_limiter.util import get_remote_address
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, To
 
-from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image, _hide_seek, extract_start_and_end_frames, pil_to_bytes
+from utils import bytes_from_image, thumbnail_bytes_for_image, fetch_env_config, image_from_base_64, serve_pil_image, _hide_seek, extract_start_and_end_frames, pil_to_bytes, REPLICATE_MODELS
 from db import create_user, fetch_user, fetch_user_for_email, update_user, delete_user, \
         create_image, fetch_images, fetch_images_for_user, fetch_images_with_hash, fetch_image_ids_for_user, fetch_image_for_user, update_image_for_user, delete_image_for_user, \
         create_audio, fetch_audios, fetch_audios_for_user, fetch_queued_audios, fetch_audio_for_user, update_audio_for_user, delete_audio_and_video_project_for_user, \
@@ -417,7 +417,10 @@ def api_create_image(current_user_id):
     images = []
 
     if data['inference_mode'] == 'Text to Image':
-        images = inference(PIPELINE_DICT['Text to Image'][data['model_id']], 'Text to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'])
+        if data['model_id'] in REPLICATE_MODELS:
+            images = inference('REPLICATE', 'Text to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'])
+        else:
+            images = inference(PIPELINE_DICT['Text to Image'][data['model_id']], 'Text to Image', data['prompt'], n_images=int(data['samples']), negative_prompt=data['negative_prompt'], steps=int(data['steps']), seed=int(data['seed']), aspect_ratio=data['aspect_ratio'])
     else:
         image = image_from_base_64(data['base_64'])
         if data['inference_mode'] == 'Image to Image':

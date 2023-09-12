@@ -5,6 +5,7 @@ import os
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
 
 import requests
+import replicate
 import traceback
 import sys
 import base64
@@ -198,21 +199,48 @@ def separate_audio_tracks(audio_pipline, wav, sr):
         yield buffer.read(), name
     
 
-def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio):
+def txt_to_img(img_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio, seed=None):
 
     translator = Translator()
 
-    images = img_pipeline(
-        "" if len(prompt) == 0 else translator.translate(prompt).text,
-        generator=generator,
-        num_images_per_prompt=n_images,
-        negative_prompt= "" if len(negative_prompt) == 0 else translator.translate(negative_prompt).text,
-        num_inference_steps=steps,
-        guidance_scale=scale,
-        height=int(aspect_ratio.split(':')[1]),
-        width=int(aspect_ratio.split(':')[0])
-    ).images
-    return images
+    if img_pipeline == 'REPLICATE':
+        os.environ["REPLICATE_API_TOKEN"] = config['replicate_api_key']
+        outputs = replicate.run(
+            "alx-ai/sdxl-noggles-nowrong:9a487e8991d1d9a2ea46a3e4933cafff201f5512b037cc046ff1cce878b143ef",
+            input={
+                "prompt": "" if len(prompt) == 0 else translator.translate(prompt).text,
+                "negative_prompt": "" if len(negative_prompt) == 0 else translator.translate(negative_prompt).text,
+                "width": int(aspect_ratio.split(':')[0]),
+                "height": int(aspect_ratio.split(':')[1]),
+                "num_outputs": n_images,
+                "scheduler": "K_EULER",
+                "num_inference_steps": steps,
+                "guidance_scale": scale,
+                "prompt_strength": 0.8,
+                "seed": seed,
+                "refine": "no_refiner",
+                "high_noise_frac": 0.8,
+                "lora_scale": 0.8
+            }
+        )
+        images = []
+        for output in outputs:
+            my_img = Image.open(io.BytesIO(requests.get(output).content))
+            images.append(my_img)
+        return images
+    
+    else:
+        images = img_pipeline(
+            "" if len(prompt) == 0 else translator.translate(prompt).text,
+            generator=generator,
+            num_images_per_prompt=n_images,
+            negative_prompt= "" if len(negative_prompt) == 0 else translator.translate(negative_prompt).text,
+            num_inference_steps=steps,
+            guidance_scale=scale,
+            height=int(aspect_ratio.split(':')[1]),
+            width=int(aspect_ratio.split(':')[0])
+        ).images
+        return images
 
 
 def img_to_img(i2i_pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio, img, strength):
@@ -435,8 +463,7 @@ def inference(pipeline, inf_mode, prompt, n_images=4, negative_prompt="", steps=
     try:
         
         if inf_mode == 'Text to Image':
-            return txt_to_img(pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio)
-        
+            return txt_to_img(pipeline, prompt, generator, n_images, negative_prompt, steps, scale, aspect_ratio, seed)
         else:
             if img is None:
                 return None
